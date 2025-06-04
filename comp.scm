@@ -61,6 +61,16 @@
 ;;       (lit! 12)
 ;;       (eor))))
 
+(thread
+ 'gensym
+ (let loop ((n 1))
+   (lets ((who _ (next-mail)))
+     (mail who (string->symbol (str "g" n)))
+     (loop (+ n 1)))))
+
+(define (gensym)
+  (interact 'gensym '_))
+
 (define (error . l)
   (print-to stderr "error: " l)
   (halt 42))
@@ -96,95 +106,137 @@
                 acc
                 env)
                (lets ((exp rest lst))
-                 (when (not (list? exp))
-                   (error exp " is not a valid expression: (not (list? ...))"))
-                 (tuple-case (list->tuple exp)
-                   ((define-label! label)
-                    (loop (cdr lst)
-                          at
-                          (put env 'labels (put (get env 'labels empty) label at))
-                          acc))
-                   ((push! value)
-                    (lets ((at code
-                               (cond
-                                ((number? value)
-                                 (if (< value 256)
-                                     (values (+ at 2) (list (tuple 'bytes `(,LIT ,value))))
-                                     `(error "shorts not supported yet: " value)))
-                                ((symbol? value)
-                                 (let ((n (let loop ((l (get env 'locals #n)))
-                                            (when (null? l)
-                                              (error "local " value " not found"))
-                                            (if (eq? (car l) value)
-                                                0
-                                                (+ 1 (loop (cdr l)))))))
-                                   (print "will get local " value " from ptr - " n)
-                                   (values (+ at 7) (list (tuple 'bytes `(,LIT 0 ,LDZ ,LIT ,n ,SUB ,LDZ))))))
-                                ((list? value)
-                                 (lets ((dat (codegen at (list value)))
-                                        (_ f dat)
-                                        (_ (print "at was: " at))
-                                        (at code _ (f env)))
-                                   (print "code: " code)
-                                   (print "at is: " at)
-                                   (values at code)))
-                                (else
-                                 (error "unsupported type for push!: " value)))))
-                      (loop (cdr lst) at env (append acc code))))
-                   ((free-locals! n)
-                    (let ((code `(,LIT 0 ,LDZ  ; load local ptr
-                                  ,LIT ,n ,SUB ; subtract the amount of freed locals
-                                  ,LIT 0 ,STZ  ; save new local ptr to 0x0
-                                  )))
-                      (loop (cdr lst)
-                            (+ at (len code))
-                            (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
-                                               (if (= n 0)
-                                                   lst
-                                                   (loop (cdr lst) (- n 1)))))
-                            (append acc (list (tuple 'bytes code))))))
-                   ((allocate-local! name)
-                    (let ((code `(,LIT 0 ,LDZ      ; load ptr
-                                  ,INC             ; inc ptr
-                                  ,STZ             ; store arg at ptr
-                                  ,LIT 0 ,LDZ ,INC ; load & inc ptr again (TODO: this might be optimizable)
-                                  ,LIT 0 ,STZ      ; store new ptr at 0x0
-                                  )))
-                      (loop
-                       (cdr lst)
-                       (+ at (len code))
-                       (put env 'locals (cons name (get env 'locals #n)))
-                       (append acc (list (tuple 'bytes code))))))
-                   ((defun name args body)
-                    (lets ((dat (codegen
-                                 at
-                                 `((define-label! ,name)
-                                   ,@(map (λ (s) `(allocate-local! ,s)) args) ; bump local counter in zero page, arg to zero-page
-                                   ,@body
-                                   (free-locals! ,(len args))
-                                   (uxn-call! (2 r) jmp))))
-                           (_ f dat)
-                           (at code env* (f env)))
-                      (loop (cdr lst) at env* (append acc code))))
-                   ((uxn-call! mode opc)
-                    (let ((short?  (has? mode 2))
-                          (return? (has? mode 'r))
-                          (keep?   (has? mode 'k)))
-                      (loop (cdr lst) (+ at 1) env (append acc (list (opcode opc short? return? keep?))))))
-                   ((funcall! func)
-                    (let ((resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ,(short! JSR)))))
-                      ;; TODO: remove magic length
-                      (if-lets ((loc (get (get env 'labels empty) func #f)))
-                        (loop (cdr lst) (+ at 5) env (append acc (list (tuple 'bytes (resolve loc))))) ; great! we have loc rn, we can resolve
-                        (loop (cdr lst) (+ at 5) env (append acc (list (tuple 'unresolved-symbol func resolve))))))) ; we do it later
-                   (else
-                    (lets ((func (car* exp))
-                           (args (cdr* exp))
-                           (dat (codegen at `(,@(map (λ (a) `(push! ,a)) args) (funcall! ,func))))
-                           (_ f dat)
-                           (at code env* (f env)))
-                      (loop (cdr lst) at env* (append acc code))))
-                   )))))))
+                 (if (list? exp)
+                     (tuple-case (list->tuple exp)
+                       ((define-label! label)
+                        (loop rest
+                              at
+                              (put env 'labels (put (get env 'labels empty) label at))
+                              acc))
+                       ((_push! mode value)
+                        (lets ((byte? (eq? mode 'byte))
+                               (at code
+                                   (cond
+                                    ((number? value)
+                                     (if byte?
+                                         (values (+ at 2) (list (tuple 'bytes `(,LIT ,(band #xff value)))))
+                                         (values (+ at 4) (list (tuple 'bytes `(,LIT ,(>> (band #xff00 value) 8) ,LIT ,(band #xff value)))))))
+                                    ((eq? value #t)
+                                     (if byte?
+                                         (values (+ at 2) (list (tuple 'bytes `(,LIT 1))))
+                                         (values (+ at 4) (list (tuple 'bytes `(,LIT 0 ,LIT 1))))))
+                                    ((eq? value #f)
+                                     (if byte?
+                                         (values (+ at 2) (list (tuple 'bytes `(,LIT 0))))
+                                         (values (+ at 4) (list (tuple 'bytes `(,LIT 0 ,LIT 0))))))
+                                    ((symbol? value)
+                                     (let loop ((l (get env 'locals #n)) (n 0))
+                                       (cond
+                                        ((null? l)
+                                         ;; did not found value in locals, try searching in function labels
+                                         (let ((resolve (λ (loc)
+                                                          (if byte?
+                                                              `(,LIT ,(band #xff loc))
+                                                              `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc))))))
+                                           ;; TODO: remove magic length, dry with funcall!
+                                           (values
+                                            (+ at (if byte? 2 4))
+                                            (if-lets ((loc (get (get env 'labels empty) value #f)))
+                                              (list (tuple 'bytes (resolve loc))) ; great! we have loc rn, we can resolve
+                                              (list (tuple 'unresolved-symbol value resolve)))))) ; we do it later
+                                        ((eq? (car l) value)
+                                         (values
+                                          (+ at (if byte? 11 10))
+                                          (list (tuple 'bytes `(,LIT 0 ,LDZ ,LIT ,n ,SUB ,LIT 2 ,MUL ,(short! LDZ) ,@(if byte? `(,NIP) #n))))))
+                                        (else
+                                         (loop (cdr l) (+ n 1))))))
+                                    ((list? value)
+                                     (lets ((dat (codegen at (list value)))
+                                            (_ f dat)
+                                            (_ (print "at was: " at))
+                                            (at code _ (f env)))
+                                       (print "code: " code)
+                                       (print "at is: " at)
+                                       (values at code)))
+                                    ;; ((string? value)
+                                    ;;  (let ((raw (fold append #n (map (λ (x) `(,LIT 0 ,LIT ,x)) (string->bytes value)))))
+                                    ;;    (values (len raw) (list (tuple 'bytes raw)))))
+                                    (else
+                                     (error "unsupported type for _push!: " value)))))
+                          (loop rest at env (append acc code))))
+                       ((free-locals! n)
+                        (let ((code `(,LIT 0 ,LDZ  ; load local ptr
+                                      ,LIT ,n ,SUB ; subtract the amount of freed locals
+                                      ,LIT 0 ,STZ  ; save new local ptr to 0x0
+                                      )))
+                          (loop rest
+                                (+ at (len code))
+                                (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
+                                                   (if (= n 0)
+                                                       lst
+                                                       (loop rest (- n 1)))))
+                                (append acc (list (tuple 'bytes code))))))
+                       ((allocate-local! name)
+                        (let ((code `(,LIT 0 ,LDZ      ; load ptr
+                                      ,INC             ; inc ptr
+                                      ,LIT 2 ,MUL      ; *2 because all locals are shorts
+                                      ,(short! STZ)    ; store arg at ptr
+                                      ,LIT 0 ,LDZ ,INC ; load & inc ptr again
+                                      ,LIT 0 ,STZ      ; store new ptr at 0x0
+                                      )))
+                          (loop
+                           rest
+                           (+ at (len code))
+                           (put env 'locals (cons name (get env 'locals #n)))
+                           (append acc (list (tuple 'bytes code))))))
+                       ((defun name args body)
+                        (lets ((dat (codegen
+                                     at
+                                     `((define-label! ,name)
+                                       ,@(map (λ (s) `(allocate-local! ,s)) args) ; bump local counter in zero page, arg to zero-page
+                                       ,@body
+                                       (free-locals! ,(len args))
+                                       (uxn-call! (2 r) jmp))))
+                               (_ f dat)
+                               (at code env* (f env)))
+                          (loop rest at env* (append acc code))))
+                       ((uxn-call! mode opc)
+                        (let ((short?  (has? mode 2))
+                              (return? (has? mode 'r))
+                              (keep?   (has? mode 'k)))
+                          (loop rest (+ at 1) env (append acc (list (opcode opc short? return? keep?))))))
+                       ((funcall! func)
+                        (let ((resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ,(short! JSR)))))
+                          ;; TODO: remove magic length
+                          (if-lets ((loc (get (get env 'labels empty) func #f)))
+                            (loop rest (+ at 5) env (append acc (list (tuple 'bytes (resolve loc))))) ; great! we have loc rn, we can resolve
+                            (loop rest (+ at 5) env (append acc (list (tuple 'unresolved-symbol func resolve))))))) ; we do it later
+                       ((if arg then else)
+                        (lets ((func (car* exp))
+                               (args (cdr* exp))
+                               (end (gensym))
+                               (then-loc (gensym))
+                               (dat (codegen at `(,arg
+                                                  (_push! _ ,then-loc)
+                                                  (uxn-call! (2) jcn)
+                                                  ,else
+                                                  (_push! _ ,end)
+                                                  (uxn-call! (2) jmp)
+                                                  (define-label! ,then-loc)
+                                                  ,then
+                                                  (define-label! ,end))))
+                               (_ f dat)
+                               (at code env* (f env)))
+                          (loop rest at env* (append acc code))))
+                       (else
+                        (lets ((func (car* exp))
+                               (args (cdr* exp))
+                               (dat (codegen at `(,@(map (λ (a) `(_push! _ ,a)) args) (funcall! ,func))))
+                               (_ f dat)
+                               (at code env* (f env)))
+                          (loop rest at env* (append acc code)))))
+                     (loop `((_push! _ ,exp) ,@rest) at env acc) ; if we got an atom, just push it
+                     )))))))
 
 (define (compile lst)
   (let loop ((lst lst)
