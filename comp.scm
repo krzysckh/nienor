@@ -72,10 +72,15 @@
     (if op
         (tuple 'bytes (list (bior*
                              (car op)
-                             (if short?  #b001 0)
-                             (if return? #b01 0)
-                             (if keep?   #b1 0))))
+                             (if short?  #b00100000 0)
+                             (if return? #b01000000 0)
+                             (if keep?   #b10000000 0))))
         (error "unknown opcode: " opc))))
+
+(define (maybe-opc x) (if (symbol? x) (get *opcodes* x #f) x))
+(define (short! x)  (bior (maybe-opc x) #b00100000))
+(define (return! x) (bior (maybe-opc x) #b01000000))
+(define (keep! x)   (bior (maybe-opc x) #b10000000))
 
 (define (codegen at lst)
   (print "lst: " lst)
@@ -87,6 +92,7 @@
                     (acc #n))
            (if (null? lst)
                (values
+                at
                 acc
                 env)
                (lets ((exp rest lst))
@@ -98,14 +104,87 @@
                           at
                           (put env 'labels (put (get env 'labels empty) label at))
                           acc))
+                   ((push! value)
+                    (lets ((at code
+                               (cond
+                                ((number? value)
+                                 (if (< value 256)
+                                     (values (+ at 2) (list (tuple 'bytes `(,LIT ,value))))
+                                     `(error "shorts not supported yet: " value)))
+                                ((symbol? value)
+                                 (let ((n (let loop ((l (get env 'locals #n)))
+                                            (when (null? l)
+                                              (error "local " value " not found"))
+                                            (if (eq? (car l) value)
+                                                0
+                                                (+ 1 (loop (cdr l)))))))
+                                   (print "will get local " value " from ptr - " n)
+                                   (values (+ at 7) (list (tuple 'bytes `(,LIT 0 ,LDZ ,LIT ,n ,SUB ,LDZ))))))
+                                ((list? value)
+                                 (lets ((dat (codegen at (list value)))
+                                        (_ f dat)
+                                        (_ (print "at was: " at))
+                                        (at code _ (f env)))
+                                   (print "code: " code)
+                                   (print "at is: " at)
+                                   (values at code)))
+                                (else
+                                 (error "unsupported type for push!: " value)))))
+                      (loop (cdr lst) at env (append acc code))))
+                   ((free-locals! n)
+                    (let ((code `(,LIT 0 ,LDZ  ; load local ptr
+                                  ,LIT ,n ,SUB ; subtract the amount of freed locals
+                                  ,LIT 0 ,STZ  ; save new local ptr to 0x0
+                                  )))
+                      (loop (cdr lst)
+                            (+ at (len code))
+                            (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
+                                               (if (= n 0)
+                                                   lst
+                                                   (loop (cdr lst) (- n 1)))))
+                            (append acc (list (tuple 'bytes code))))))
+                   ((allocate-local! name)
+                    (let ((code `(,LIT 0 ,LDZ      ; load ptr
+                                  ,INC             ; inc ptr
+                                  ,STZ             ; store arg at ptr
+                                  ,LIT 0 ,LDZ ,INC ; load & inc ptr again (TODO: this might be optimizable)
+                                  ,LIT 0 ,STZ      ; store new ptr at 0x0
+                                  )))
+                      (loop
+                       (cdr lst)
+                       (+ at (len code))
+                       (put env 'locals (cons name (get env 'locals #n)))
+                       (append acc (list (tuple 'bytes code))))))
+                   ((defun name args body)
+                    (lets ((dat (codegen
+                                 at
+                                 `((define-label! ,name)
+                                   ,@(map (λ (s) `(allocate-local! ,s)) args) ; bump local counter in zero page, arg to zero-page
+                                   ,@body
+                                   (free-locals! ,(len args))
+                                   (uxn-call! (2 r) jmp))))
+                           (_ f dat)
+                           (at code env* (f env)))
+                      (loop (cdr lst) at env* (append acc code))))
                    ((uxn-call! mode opc)
                     (let ((short?  (has? mode 2))
                           (return? (has? mode 'r))
                           (keep?   (has? mode 'k)))
                       (loop (cdr lst) (+ at 1) env (append acc (list (opcode opc short? return? keep?))))))
+                   ((funcall! func)
+                    (let ((resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ,(short! JSR)))))
+                      ;; TODO: remove magic length
+                      (if-lets ((loc (get (get env 'labels empty) func #f)))
+                        (loop (cdr lst) (+ at 5) env (append acc (list (tuple 'bytes (resolve loc))))) ; great! we have loc rn, we can resolve
+                        (loop (cdr lst) (+ at 5) env (append acc (list (tuple 'unresolved-symbol func resolve))))))) ; we do it later
                    (else
-                    (error "unknown expression for codegen: " exp)
-                    ))))))))
+                    (lets ((func (car* exp))
+                           (args (cdr* exp))
+                           (dat (codegen at `(,@(map (λ (a) `(push! ,a)) args) (funcall! ,func))))
+                           (_ f dat)
+                           (at code env* (f env)))
+                      (loop (cdr lst) at env* (append acc code))))
+                   )))))))
 
 (define (compile lst)
   (let loop ((lst lst)
@@ -132,7 +211,7 @@
   (fold (λ (data c)
           (lets ((env code data)
                  (at f c)
-                 (code* env* (f env)))
+                 (_ code* env* (f env)))
             (print "code: " code)
             (print "env: " (ff->list env*))
             (cons env* (append code (list code*)))))
@@ -140,3 +219,20 @@
         compiled))
 
 (print fully-compiled)
+
+(define (finalize env lst)
+  (fold (λ (a b) (tuple-case b
+                   ((bytes l)
+                    (append a l))
+                   ((unresolved-symbol symbol resolve)
+                    (if-lets ((loc (get (get env 'labels empty) symbol)))
+                      (let ()
+                        (print "found " symbol " at " loc)
+                        (append a (resolve loc)))
+                      (error "couldn't resolve symbol " symbol)))
+                   (else
+                    (error "unknown directive " b))))
+        #n
+        lst))
+
+(list->file (finalize (car fully-compiled) (cadr fully-compiled)) "temp.bin")

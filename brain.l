@@ -14,12 +14,8 @@
 ; ->
 
 (define-label! +)
-(allocate-local! a)
 (allocate-local! b)
-(pop-to-local! b)
-(pop-to-local! a)
-(push-local! a)
-(push-local! b)
+(allocate-local! a)
 (uxn-call! 'add)
 (free-locals! 2)
 (uxn-call2r! 'jmp)
