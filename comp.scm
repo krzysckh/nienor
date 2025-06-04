@@ -158,9 +158,9 @@
                                        (print "code: " code)
                                        (print "at is: " at)
                                        (values at code)))
-                                    ;; ((string? value)
-                                    ;;  (let ((raw (fold append #n (map (λ (x) `(,LIT 0 ,LIT ,x)) (string->bytes value)))))
-                                    ;;    (values (len raw) (list (tuple 'bytes raw)))))
+                                    ((string? value)
+                                     (let ((raw (fold append #n (map (λ (x) `(,LIT 0 ,LIT ,x)) (reverse (string->bytes value))))))
+                                       (values (len raw) (list (tuple 'bytes raw)))))
                                     (else
                                      (error "unsupported type for _push!: " value)))))
                           (loop rest at env (append acc code))))

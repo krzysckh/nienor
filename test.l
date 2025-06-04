@@ -17,8 +17,8 @@
       (uxn-call! (2) add)))
 
    (defun - (a b)
-     ((push! a)
-      (push! b)
+     ((push! b)
+      (push! a)
       (uxn-call! (2) sub)))
 
    (defun putchar (c)
@@ -31,7 +31,20 @@
       (pus! #x0f)
       (uxn-call! () deo)))
 
+   (defun equ? (a b)
+     ((push! a)
+      (push! b)
+      (uxn-call! (2) equ)))
+
+   (defun eq? (a b)
+     ((pus! a)
+      (pus! b)
+      (uxn-call! () equ)))
+
    (defun noop ()
+     ())
+
+   (defun noop2 (_a _b)
      ())
 
    (defun print-hello ()
@@ -42,8 +55,17 @@
       (putchar #\o)
       (putchar #\newline)))
 
+   (defun puts (n)
+     ((if (equ? n 0)
+          #t
+          (noop2
+           (putchar)
+           (puts (- n 1))))))
+
    (defun main ()
-     ((if #t (print-hello) (noop))
-      (exit (+ #x7f 1))))
+     ("Hello, World!\n" (puts 14)))
+
+     ;; ((if #t (print-hello) (noop))
+     ;;  (exit (+ #x7f 1))))
 
    ))
