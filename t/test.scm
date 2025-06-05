@@ -1,16 +1,15 @@
 ;; -*- Owl -*-
 
-(define-constant color-1 0)
-(define-constant color-2 1)
-(define-constant color-3 2)
-(define-constant color-4 3)
-
-(define-constant fill-mode  #b10000000)
-(define-constant pixel-mode #b00000000)
-(define-constant layer-0    #b00000000)
-(define-constant layer-1    #b01000000)
-(define-constant flip-x     #b00100000)
-(define-constant flip-y     #b00010000)
+(alloc!
+ mouse-sprite
+ #b11000000
+ #b11100000
+ #b11110000
+ #b11111000
+ #b11110000
+ #b00110000
+ #b00011000
+ #b00001000)
 
 (define (debug!)
   (pus! 1)
@@ -98,14 +97,6 @@
   (pus! b)
   (uxn-call! () equ))
 
-;; (define (puts n)
-;;   (if (equ? n 0)
-;;       #t
-;;       (begin
-;;         (putchar) ; the string is on the stack, so we don't pass anything
-;;                   ; there is no arg checking so we "can" do that
-;;         (puts (- n 1)))))
-
 (define (set-draw-handler! f)
   (push! f)
   (pus! #x20)
@@ -155,6 +146,24 @@
 (define (fill! x y color layer)
   (pixel! x y color fill-mode layer 0 0))
 
+(define (pick-sprite! sprite)
+  (push! sprite)
+  (pus! #x2c)
+  (deo2!))
+
+(define (sprite! x y sprite bpp2? layer fx fy color)
+  (pick-pixel! x y)
+  (pick-sprite! sprite)
+
+  (bior* bpp2? layer fx fy color)
+
+  (allocate-local! mask) ; this sucks, TODO: fix the macroexpander
+  (short->byte mask)
+
+  (pus! #x2f)
+  (deo!)
+  (free-locals! 1))
+
 (define (mouse-x)
   (pus! #x92)
   (dei2!))
@@ -165,7 +174,8 @@
 
 (define-vector (draw-handler)
   (fill! 0 0 color-3 layer-0)
-  (pixel! (mouse-x) (mouse-y) color-1 0 0 0 0))
+  (sprite! (mouse-x) (mouse-y) mouse-sprite 0 0 0 0 color-1))
+  ;; (pixel! (mouse-x) (mouse-y) color-1 0 0 0 0))
 
 (define (main)
   (set-colors! #xff00 #xff00 #xff00)

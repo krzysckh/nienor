@@ -8,8 +8,9 @@
 (define command-line-rules
   (cl-rules
    `((help   "-h" "--help")
-     (output "-o" "--output" has-arg comment "target file" default "a.out")
-     (emacro "-m" "--macros" comment "only expand macros")
+     (output "-o" "--output" has-arg comment "target file"        default "a.out")
+     (emacro "-m" "--macros"         comment "only expand macros")
+     (opt?   "-O" "--optimize"       comment "optimize code")
      ;; (ast    "-p" "--print-ast" comment "print the AST")
      )))
 
@@ -23,13 +24,14 @@
        (halt 0))
 
      (let ((out (get opt 'output #f))
-           (mac (get opt 'emacro #f)))
+           (mac (get opt 'emacro #f))
+           (opt? (get opt 'opt? #f)))
        (cond
         ((= (length extra) 1)
          (if mac
              (lets ((_ lst (n/expand-macros (file->sexps (car extra)))))
                (for-each print lst))
-             (let ((data (n/compile-file (car extra))))
+             (let ((data (n/compile-file (car extra) (if opt? 3 #f))))
                (print "Assembled to " (format-number-base2 (len data)) "B")
                (list->file data out)))
          0)

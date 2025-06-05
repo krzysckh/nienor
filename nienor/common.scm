@@ -5,9 +5,13 @@
 
   (export
    file->sexps
+   warn
    error)
 
   (begin
+    (define (warn . l)
+      (print-to stderr "warning: " l))
+
     (define (error . l)
       (print-to stderr "error: " l)
       (halt 42))

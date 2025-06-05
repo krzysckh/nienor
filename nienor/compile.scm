@@ -5,6 +5,7 @@
    (nienor macro))
 
   (export
+   attach-prelude
    expand-macros
    compile
    compile-file)
@@ -98,6 +99,22 @@
              (at code env* (f env)))
         (cont rest at env* (append acc code))))
 
+    (define (add-label env name value . nounused)
+      (let ((labels (get env 'labels empty))
+            (unused (get env 'unused empty)))
+        (lets ((env (put env 'labels (put labels name value))))
+          (put
+           env
+           'unused
+           (if (null? nounused)
+               (if (get unused name #t)
+                   (put unused name #t)
+                   unused)
+               unused)))))
+
+    (define (remove-unused env name)
+      (put env 'unused (put (get env 'unused empty) name #f)))
+
     (define (codegen at lst)
       ;; (print "lst: " lst)
       `(,at
@@ -117,31 +134,46 @@
                            ((define-label! label)
                             (loop rest
                                   at
-                                  (put env 'labels (put (get env 'labels empty) label at))
+                                  (add-label env label at)
                                   acc))
                            ((define-constant name value)
                             (loop rest
                                   at
-                                  (put env 'labels (put (get env 'labels empty) name value))
+                                  (add-label env name value 'nah)
                                   acc))
+                           ((_alloc! name bytes)
+                            (let ((bytes (fold
+                                          (λ (a b)
+                                            (append
+                                             a
+                                             (cond
+                                              ((string? b) (string->bytes b))
+                                              ((symbol? b) (error "_alloc! with variables is not implemented"))
+                                              (else (list b)))))
+                                          #n
+                                          bytes)))
+                              (loop rest
+                                    (+ at (len bytes))
+                                    (add-label env name at)
+                                    (append acc (list (tuple 'bytes bytes))))))
                            ((codegen-at! ptr)
                             (loop rest ptr env (append acc (list (tuple 'codegen-at ptr)))))
                            ((_push! mode value)
                             (lets ((byte? (eq? mode 'byte))
-                                   (at code
+                                   (env at code
                                        (cond
                                         ((number? value)
                                          (if byte?
-                                             (values (+ at 2) (list (tuple 'bytes `(,LIT ,(band #xff value)))))
-                                             (values (+ at 4) (list (tuple 'bytes `(,LIT ,(>> (band #xff00 value) 8) ,LIT ,(band #xff value)))))))
+                                             (values env (+ at 2) (list (tuple 'bytes `(,LIT ,(band #xff value)))))
+                                             (values env (+ at 4) (list (tuple 'bytes `(,LIT ,(>> (band #xff00 value) 8) ,LIT ,(band #xff value)))))))
                                         ((eq? value #t)
                                          (if byte?
-                                             (values (+ at 2) (list (tuple 'bytes `(,LIT 1))))
-                                             (values (+ at 4) (list (tuple 'bytes `(,LIT 0 ,LIT 1))))))
+                                             (values env (+ at 2) (list (tuple 'bytes `(,LIT 1))))
+                                             (values env (+ at 4) (list (tuple 'bytes `(,LIT 0 ,LIT 1))))))
                                         ((eq? value #f)
                                          (if byte?
-                                             (values (+ at 2) (list (tuple 'bytes `(,LIT 0))))
-                                             (values (+ at 4) (list (tuple 'bytes `(,LIT 0 ,LIT 0))))))
+                                             (values env (+ at 2) (list (tuple 'bytes `(,LIT 0))))
+                                             (values env (+ at 4) (list (tuple 'bytes `(,LIT 0 ,LIT 0))))))
                                         ((symbol? value)
                                          (let loop ((l (get env 'locals #n)) (n 0))
                                            (cond
@@ -153,12 +185,14 @@
                                                                   `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc))))))
                                                ;; TODO: remove magic length, dry with funcall!
                                                (values
+                                                (remove-unused env value)
                                                 (+ at (if byte? 2 4))
                                                 (if-lets ((loc (get (get env 'labels empty) value #f)))
                                                   (list (tuple 'bytes (resolve loc))) ; great! we have loc rn, we can resolve
                                                   (list (tuple 'unresolved-symbol value resolve)))))) ; we do it later
                                             ((eq? (car l) value)
                                              (values
+                                              env
                                               (+ at (if byte? 11 10))
                                               (list (tuple 'bytes `(,LIT 0 ,LDZ ,LIT ,n ,SUB ,LIT 2 ,MUL ,(short! LDZ) ,@(if byte? `(,NIP) #n))))))
                                             (else
@@ -166,11 +200,11 @@
                                         ((list? value)
                                          (lets ((dat (codegen at (list value)))
                                                 (_ f dat)
-                                                (at code _ (f env)))
-                                           (values at code)))
+                                                (at code env (f env)))
+                                           (values env at code)))
                                         ((string? value)
                                          (let ((raw (fold append #n (map (λ (x) `(,LIT 0 ,LIT ,x)) (reverse (string->bytes value))))))
-                                           (values (len raw) (list (tuple 'bytes raw)))))
+                                           (values env (len raw) (list (tuple 'bytes raw)))))
                                         (else
                                          (error "unsupported type for _push!: " value)))))
                               (loop rest at env (append acc code))))
@@ -212,8 +246,8 @@
                             (let ((resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ,(short! JSR)))))
                               ;; TODO: remove magic length
                               (if-lets ((loc (get (get env 'labels empty) func #f)))
-                                (loop rest (+ at 5) env (append acc (list (tuple 'bytes (resolve loc))))) ; great! we have loc rn, we can resolve
-                                (loop rest (+ at 5) env (append acc (list (tuple 'unresolved-symbol func resolve))))))) ; we do it later
+                                (loop rest (+ at 5) (remove-unused env func) (append acc (list (tuple 'bytes (resolve loc))))) ; great! we have loc rn, we can resolve
+                                (loop rest (+ at 5) (remove-unused env func) (append acc (list (tuple 'unresolved-symbol func resolve))))))) ; we do it later
                            ((if arg then else)
                             (lets ((func (car* exp))
                                    (args (cdr* exp))
@@ -302,10 +336,26 @@
           (short->byte x)
           (_push! byte x))
 
+        (define-macro-rule
+          (alloc! name . vals)
+          (_alloc! name vals))
+
+        (define-constant color-1 0)
+        (define-constant color-2 1)
+        (define-constant color-3 2)
+        (define-constant color-4 3)
+
+        (define-constant fill-mode  #b10000000)
+        (define-constant pixel-mode #b00000000)
+        (define-constant layer-0    #b00000000)
+        (define-constant layer-1    #b01000000)
+        (define-constant flip-x     #b00100000)
+        (define-constant flip-y     #b00010000)
+
         (codegen-at! #x100)
 
         (main)
-        (uxn-call! () brk) ; <- this will be later in a prelude
+        (uxn-call! () brk)
 
         (define-label! begin) ; yup! that's how i declare a begin it uses the fact that any label will be treated
         (uxn-call! (2 r) jmp) ; as a function with any amount of args; so it is a "function" without a function prelude and epilogue
@@ -315,9 +365,10 @@
 
     (define empty-env
       (pipe empty
-        (put 'labels empty)    ; ff of labels & constants, global
-        (put 'locals #n)       ; a list, newest consed before, then removed at free-locals!
-        (put 'macros empty)    ; ff of macro-name -> λ (exp) -> rewritten
+        (put 'labels empty) ; ff of labels & constants, global
+        (put 'locals #n)    ; a list, newest consed before, then removed at free-locals!
+        (put 'macros empty) ; ff of macro-name -> λ (exp) -> rewritten
+        (put 'unused empty) ; ff of label -> truthy value when unused
         ))
 
     ;; env rule rewrite → env'
@@ -361,11 +412,12 @@
                (loop (cdr exp) env (append acc (list (car exp)))))))))
 
     (define (resolve env lst)
-      (fold (λ (a b) (tuple-case b
+      (fold (λ (a b)
+              (tuple-case b
                        ((codegen-at ptr*)
                         (let ((ptr (- ptr* #x100)))
                           (if (> (len a) ptr)
-                              (error "attempting to codegen-at! on code that was already written")
+                              (error "attempting to codegen-at! on code that was already written " ptr)
                               (append a (make-list (- ptr (len a)) 0)))))
                        ((bytes l)
                         (append a l))
@@ -379,13 +431,26 @@
             lst))
 
     (define (expand-macros lst)
-      (lets ((lst (append *prelude* lst))
-             (env lst (lookup-toplevel-macros empty-env lst)))
+      (lets ((env lst (lookup-toplevel-macros empty-env lst)))
         (values
          env
          (apply-macros env lst))))
 
-    (define (compile lst)
+    (define (get-unused env)
+      (ff-fold
+       (λ (a k v) (if v (cons k a) a))
+       #n
+       (get env 'unused empty)))
+
+    (define (delete-unused-defuns unused lst)
+      (filter
+       (λ (l)
+         (if (eq? (car* l) '_defun)
+             (not (has? unused (car* (cdr* l))))
+             #t))
+       lst))
+
+    (define (compile lst opt?)
       ;; a toplevel thread didn't seem to compile correctly
       (thread
        'gensym
@@ -398,12 +463,25 @@
               (mail who (string->symbol (str "g" n)))
               (loop (+ n 1)))))))
 
-      (lets ((env lst (expand-macros lst))
+      (lets ((opt? (cond ; limit passes to 4
+                    ((eq? opt? 0) #f)
+                    ((not (number? opt?)) 4)
+                    (else
+                     (- opt? 1))))
+             (env lst (expand-macros lst))
              (_ code* env* ((cdr (codegen #x100 lst)) env))) ; <- gensym is only needed here
         (interact 'gensym (tuple 'exit!))                    ; so we can kill it afterwards
-        (resolve env* code*)))
+        (let ((unused (get-unused env*)))
+          (if (and opt? (not (null? unused)))
+              (compile (delete-unused-defuns unused lst) opt?)
+              (begin
+                (for-each (H warn "unused label:") unused)
+                (resolve env* code*))))))
 
-    (define (compile-file filename)
-      (compile (file->sexps filename)))
+    (define (attach-prelude lst)
+      (append *prelude* lst))
+
+    (define (compile-file filename opt?)
+      (compile (attach-prelude (file->sexps filename)) opt?))
 
     ))
