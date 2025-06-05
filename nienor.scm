@@ -17,6 +17,7 @@
    (cdr args) command-line-rules "you lose"
    (λ (opt extra)
      (when (get opt 'help #f)
+       (print "Usage: " (car args) " [args] [file]")
        (print-rules command-line-rules)
        (halt 0))
 
