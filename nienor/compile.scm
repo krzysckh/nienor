@@ -5,6 +5,7 @@
    (nienor macro))
 
   (export
+   empty-env
    attach-prelude
    expand-macros
    compile
@@ -317,9 +318,7 @@
     (define (lookup-toplevel-macros env exp)
       (let loop ((exp exp) (env env) (acc #n) (substitutions 0))
         (if (null? exp)
-            (if (= substitutions 0) ; lookup toplevel macros until there is no macros that generate macros left
-                (values env acc)
-                (lookup-toplevel-macros env acc))
+            (values substitutions env acc)
             (tuple-case (list->tuple (car* exp))
               ((define-macro-rule literal rule rewrite)
                (loop (cdr exp) (add-macro env rule rewrite literal) acc (+ substitutions 1)))
@@ -345,13 +344,15 @@
             #n
             lst))
 
-    (define (expand-macros lst)
-      (lets ((env lst (lookup-toplevel-macros empty-env lst)))
-        (values
-         env
-         (apply-macros env lst))))
+    (define (expand-macros lst env)
+      (lets ((substitutions env lst (lookup-toplevel-macros env lst)))
+        (if (= substitutions 0)
+            (values
+             env
+             (apply-macros env lst))
+            (expand-macros (apply-macros env lst) env))))
 
-    (define unused-no-complain '(begin))
+    (define unused-no-complain '(nigeb))
 
     (define (get-unused env)
       (filter
@@ -388,7 +389,7 @@
                     ((not (number? opt?)) 4)
                     (else
                      (- opt? 1))))
-             (env lst (expand-macros lst))
+             (env lst (expand-macros lst empty-env))
              (_ code* env* ((cdr (codegen #x100 lst)) env))) ; <- gensym is only needed here
         (interact 'gensym (tuple 'exit!))                    ; so we can kill it afterwards
         (let ((unused (get-unused env*)))
@@ -404,7 +405,7 @@
     (define (attach-prelude lst)
       (append *prelude* lst))
 
-    (define (compile-file filename opt?)
-      (compile (attach-prelude (file->sexps filename)) opt?))
+    (define (compile-file filename opt? . att)
+      (compile ((if (null? att) attach-prelude (car att)) (file->sexps filename)) opt?))
 
     ))

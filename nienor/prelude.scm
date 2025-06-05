@@ -16,20 +16,12 @@
   (_defun f () body))
 
 (define-macro-rule ()
-  (define (f . args) . body)
-  (_defun f args body))
-
-(define-macro-rule () ; TODO: (a . b) doesn't capture b when b is empty
-  (define (f) . body)
-  (_defun f () body))
+  (define (f . arg) . body)
+  (_defun f arg body))
 
 (define-macro-rule ()
   (define-vector (f . args) . body)
   (_defun-vector f args body))
-
-(define-macro-rule ()
-  (define-vector (f) . body)
-  (_defun-vector f () body))
 
 (define-macro-rule ()
   (push! it)
@@ -93,6 +85,14 @@
     (name _arg)
     (deo2-with _arg addr)))
 
+(define-macro-rule ()
+  (define-binop name uxn-op . modes)
+  (define-macro-rule ()
+    (name _arg1 _arg2)
+    (begin
+      _arg1 _arg2
+      (uxn-call! modes uxn-op))))
+
 (define-constant color-1 0)
 (define-constant color-2 1)
 (define-constant color-3 2)
@@ -107,11 +107,34 @@
 
 (codegen-at! #x100)
 
-(main)
-(uxn-call! () brk)
+;;;---
+;; this gets called at #x100, this should contain only the most important stuff
+;; to bootstrap the execution
+;; that's why the compiler requires (main) to be defined, it's like _start in assemblers
+;; ...or main in C
+;; ...or WinMain in microsoft C
 
-(define-label! nigeb) ; yup! that's how i declare a begin it uses the fact that any label will be treated
-(uxn-call! (2 r) jmp) ; as a function with any amount of args; so it is a "function" without a function prelude and epilogue
+(main)
+(brk!)
+
+;;---
+
+;; now jump with code generation to #x110 (arbitrary number after calling #x100,
+;; enough to hold the bootstrap part)
+(codegen-at! #x110) ; TODO: actually calculate where to codegen after prelude
+
+
+;; I define begin with no special syntax treatment
+;; it's a hack as follows, i declare a `nigeb' label, which is begin backwards
+;; it (as the name suggests) does what begin would do backwards
+;; that's because the compiler thinks it's a function, and tries to (_push!)
+;; the results of functions that are arguments... in reverse order
+;; that's why we have a _reverse macro, which does a nigeb->begin transformation
+;; (reverses arguments) - now we can create a begin !
+
+;; this is a function that just returns
+(define-label! nigeb)
+(uxn-call! (2 r) jmp)
 
 (define-macro-rule (_)
   (_reverse a . b)
@@ -129,23 +152,24 @@
   (begin . exp)
   (nigeb . (_reverse . exp)))
 
-(codegen-at! #x110) ; TODO: actually calculate where to codegen after prelude
-
 (define-simple-deo putchar #x18)
 
 (define-macro-rule ()
   (debug!)
   (begin (pus! 1) (pus! #x0e) (deo!)))
 
-(define (+ a b)
-  (push! a) ; i manually push here for the uxn-call! primitive
-  (push! b)
-  (uxn-call! (2) add))
+;; (define (+ a b)
+;;   (push! a) ; i manually push here for the uxn-call! primitive
+;;   (push! b)
+;;   (uxn-call! (2) add))
 
-(define (- a b)
-  (push! b)
-  (push! a)
-  (uxn-call! (2) sub))
+(define-binop + add 2)
+(define-binop - sub 2)
+
+;; (define (- a b)
+;;   (push! b)
+;;   (push! a)
+;;   (uxn-call! (2) sub))
 
 (define-macro-rule ()
   (bior* a b . c)

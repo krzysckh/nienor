@@ -1,22 +1,7 @@
 ;; -*- Owl -*-
 
-(define (debug!)
-  (pus! 1)
-  (pus! #x0e)
-  (deo!))
-
-(define (putchar c)
-  (pus! c)
-  (pus! #x18)
-  (uxn-call! () deo))
-
 (define (f a b c d e f g)
   (putchar g))
-
-(define (+ a b)
-  (push! a) ; i manually push here for the uxn-call! primitive
-  (push! b)
-  (uxn-call! (2) add))
 
 (define (bior8 a b)
   (pus! a)
@@ -34,4 +19,5 @@
      (bior8up 100 0)
      (bior8up 101 0)
      (bior8up 102 0)
-     (bior8up 103 0)))
+     (bior8up 103 0))
+  (exit #x80))

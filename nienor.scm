@@ -11,6 +11,7 @@
      (output "-o" "--output" has-arg comment "target file"        default "a.out")
      (emacro "-m" "--macros"         comment "only expand macros")
      (opt?   "-O" "--optimize"       comment "optimize code")
+     (np     "-N" "--no-prelude"     comment "don't attach prelude")
      ;; (ast    "-p" "--print-ast" comment "print the AST")
      )))
 
@@ -23,15 +24,17 @@
        (print-rules command-line-rules)
        (halt 0))
 
-     (let ((out (get opt 'output #f))
-           (mac (get opt 'emacro #f))
-           (opt? (get opt 'opt? #f)))
+     (let* ((out (get opt 'output #f))
+            (mac (get opt 'emacro #f))
+            (opt? (get opt 'opt? #f))
+            (np (get opt 'np #f))
+            (att (if np I n/attach-prelude)))
        (cond
         ((= (length extra) 1)
          (if mac
-             (lets ((_ lst (n/expand-macros (n/attach-prelude (file->sexps (car extra))))))
+             (lets ((_ lst (n/expand-macros (att (file->sexps (car extra))) n/empty-env)))
                (for-each print lst))
-             (let ((data (n/compile-file (car extra) (if opt? 4 #f))))
+             (let ((data (n/compile-file (car extra) (if opt? 4 #f) att)))
                (print "Assembled to " (format-number-base2 (len data)) "B")
                (list->file data out)))
          0)

@@ -12,12 +12,12 @@ a simple macro system for nienor. nothing fancy, just enough to get the lisp goi
    rewrite-macro)
 
   (begin
-    (define atom? (B not pair?))
+    (define (atom? x) (and (not (pair? x)) (not (null? x))))
 
     (define (macro-matches? macro exp literal)
       (cond
        ((and (null? macro) (null? exp)) '())
-       ((and (not (pair? macro)) (list? exp))
+       ((and (atom? macro) (list? exp))
         `((,macro . ,exp))) ; (a b . c)
        ((has? literal (car* macro))
         (if (eq? (car* macro) (car* exp))
