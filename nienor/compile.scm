@@ -1,11 +1,11 @@
 (define-library (nienor compile)
   (import
    (owl toplevel)
-   (owl sexp)
    (nienor common)
    (nienor macro))
 
   (export
+   expand-macros
    compile
    compile-file)
 
@@ -83,6 +83,21 @@
     (define (return! x) (bior (maybe-opc x) #b01000000))
     (define (keep! x)   (bior (maybe-opc x) #b10000000))
 
+    (define (make-defun codegen cont env acc rest at name args body mode)
+      (lets ((dat (codegen
+                   at
+                   `((define-label! ,name)
+                     ,@(map (λ (s) `(allocate-local! ,s)) args) ; bump local counter in zero page, arg to zero-page
+                     ,@body
+                     (free-locals! ,(len args))
+                     ,@(if (eq? mode 'vector)
+                           '((uxn-call! () brk)) ; a list because i had something something in mind
+                           '((uxn-call! (2 r) jmp)))
+                     )))
+             (_ f dat)
+             (at code env* (f env)))
+        (cont rest at env* (append acc code))))
+
     (define (codegen at lst)
       ;; (print "lst: " lst)
       `(,at
@@ -103,6 +118,11 @@
                             (loop rest
                                   at
                                   (put env 'labels (put (get env 'labels empty) label at))
+                                  acc))
+                           ((define-constant name value)
+                            (loop rest
+                                  at
+                                  (put env 'labels (put (get env 'labels empty) name value))
                                   acc))
                            ((codegen-at! ptr)
                             (loop rest ptr env (append acc (list (tuple 'codegen-at ptr)))))
@@ -155,7 +175,7 @@
                                          (error "unsupported type for _push!: " value)))))
                               (loop rest at env (append acc code))))
                            ((free-locals! n)
-                            (let ((code `(,LIT 0 ,LDZ  ; load local ptr
+                            (let ((code `(,LIT 0 ,LDZ  ; load local ptr from 0x0
                                           ,LIT ,n ,SUB ; subtract the amount of freed locals
                                           ,LIT 0 ,STZ  ; save new local ptr to 0x0
                                           )))
@@ -180,16 +200,9 @@
                                (put env 'locals (cons name (get env 'locals #n)))
                                (append acc (list (tuple 'bytes code))))))
                            ((_defun name args body)
-                            (lets ((dat (codegen
-                                         at
-                                         `((define-label! ,name)
-                                           ,@(map (λ (s) `(allocate-local! ,s)) args) ; bump local counter in zero page, arg to zero-page
-                                           ,@body
-                                           (free-locals! ,(len args))
-                                           (uxn-call! (2 r) jmp))))
-                                   (_ f dat)
-                                   (at code env* (f env)))
-                              (loop rest at env* (append acc code))))
+                            (make-defun codegen loop env acc rest at name args body 'normal)) ; continues loop
+                           ((_defun-vector name args body)
+                            (make-defun codegen loop env acc rest at name args body 'vector)) ; continues loop
                            ((uxn-call! mode opc)
                             (let ((short?  (has? mode 2))
                                   (return? (has? mode 'r))
@@ -218,10 +231,10 @@
                                    (_ f dat)
                                    (at code env* (f env)))
                               (loop rest at env* (append acc code))))
-                           (else
+                           (else ; funcall
                             (lets ((func (car* exp))
                                    (args (cdr* exp))
-                                   (dat (codegen at `(,@(map (λ (a) `(_push! _ ,a)) args) (funcall! ,func))))
+                                   (dat (codegen at `(,@(map (λ (a) `(_push! _ ,a)) (reverse args)) (funcall! ,func))))
                                    (_ f dat)
                                    (at code env* (f env)))
                               (loop rest at env* (append acc code)))))
@@ -250,12 +263,44 @@
           (_defun f () body))
 
         (define-macro-rule
+          (define-vector (f . args) . body)
+          (_defun-vector f args body))
+
+        (define-macro-rule
+          (define-vector (f) . body)
+          (_defun-vector f () body))
+
+        (define-macro-rule
           (push! it)
           (_push! _ it))
 
         (define-macro-rule
           (pus! it)
           (_push! byte it))
+
+        (define-macro-rule
+          (deo!)
+          (uxn-call! () deo))
+
+        (define-macro-rule
+          (deo2!)
+          (uxn-call! (2) deo))
+
+        (define-macro-rule
+          (dei!)
+          (uxn-call! () dei))
+
+        (define-macro-rule
+          (dei2!)
+          (uxn-call! (2) dei))
+
+        (define-macro-rule
+          (brk!)
+          (uxn-call! () brk))
+
+        (define-macro-rule
+          (short->byte x)
+          (_push! byte x))
 
         (codegen-at! #x100)
 
@@ -270,9 +315,9 @@
 
     (define empty-env
       (pipe empty
-        (put 'labels empty) ; ff, global
-        (put 'locals #n)    ; a list, newest consed before, then removed at free-locals!
-        (put 'macros empty) ; ff of macro-name -> λ (exp) -> rewritten
+        (put 'labels empty)    ; ff of labels & constants, global
+        (put 'locals #n)       ; a list, newest consed before, then removed at free-locals!
+        (put 'macros empty)    ; ff of macro-name -> λ (exp) -> rewritten
         ))
 
     ;; env rule rewrite → env'
@@ -333,6 +378,13 @@
             #n
             lst))
 
+    (define (expand-macros lst)
+      (lets ((lst (append *prelude* lst))
+             (env lst (lookup-toplevel-macros empty-env lst)))
+        (values
+         env
+         (apply-macros env lst))))
+
     (define (compile lst)
       ;; a toplevel thread didn't seem to compile correctly
       (thread
@@ -346,14 +398,12 @@
               (mail who (string->symbol (str "g" n)))
               (loop (+ n 1)))))))
 
-      (lets ((lst (append *prelude* lst))
-             (env lst (lookup-toplevel-macros empty-env lst))
-             (lst (apply-macros env lst))
-             (_ code* env* ((cdr (codegen #x100 lst)) env)))
-        (interact 'gensym (tuple 'exit!))
+      (lets ((env lst (expand-macros lst))
+             (_ code* env* ((cdr (codegen #x100 lst)) env))) ; <- gensym is only needed here
+        (interact 'gensym (tuple 'exit!))                    ; so we can kill it afterwards
         (resolve env* code*)))
 
     (define (compile-file filename)
-      (compile (list->sexps (file->list filename) (λ _ _) "syntax error:")))
+      (compile (file->sexps filename)))
 
     ))
