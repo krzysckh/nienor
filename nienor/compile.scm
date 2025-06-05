@@ -25,6 +25,7 @@
        #x1c #x1d #x1e #x1f #x20 #x40 #x60
        #x80))
 
+    ;; TODO: some simpler opcode calling, actually use the arity i store here
     (define *opcodes*
       (pipe empty
         (put 'brk `(,BRK 0))
@@ -275,94 +276,6 @@
                          (loop `((_push! _ ,exp) ,@rest) at env acc) ; if we got an atom, just push it
                          )))))))
 
-    (define *prelude*
-      '((define-macro-rule
-          (defun f (arg1 . args) . body)
-          (_defun f (arg1 . args) body))
-
-        (define-macro-rule
-          (defun f (arg1) . body)
-          (_defun f (arg1) body))
-
-        (define-macro-rule
-          (defun f () . body)
-          (_defun f () body))
-
-        (define-macro-rule
-          (define (f . args) . body)
-          (_defun f args body))
-
-        (define-macro-rule ; TODO: (a . b) doesn't capture b when b is empty
-          (define (f) . body)
-          (_defun f () body))
-
-        (define-macro-rule
-          (define-vector (f . args) . body)
-          (_defun-vector f args body))
-
-        (define-macro-rule
-          (define-vector (f) . body)
-          (_defun-vector f () body))
-
-        (define-macro-rule
-          (push! it)
-          (_push! _ it))
-
-        (define-macro-rule
-          (pus! it)
-          (_push! byte it))
-
-        (define-macro-rule
-          (deo!)
-          (uxn-call! () deo))
-
-        (define-macro-rule
-          (deo2!)
-          (uxn-call! (2) deo))
-
-        (define-macro-rule
-          (dei!)
-          (uxn-call! () dei))
-
-        (define-macro-rule
-          (dei2!)
-          (uxn-call! (2) dei))
-
-        (define-macro-rule
-          (brk!)
-          (uxn-call! () brk))
-
-        (define-macro-rule
-          (short->byte x)
-          (_push! byte x))
-
-        (define-macro-rule
-          (alloc! name . vals)
-          (_alloc! name vals))
-
-        (define-constant color-1 0)
-        (define-constant color-2 1)
-        (define-constant color-3 2)
-        (define-constant color-4 3)
-
-        (define-constant fill-mode  #b10000000)
-        (define-constant pixel-mode #b00000000)
-        (define-constant layer-0    #b00000000)
-        (define-constant layer-1    #b01000000)
-        (define-constant flip-x     #b00100000)
-        (define-constant flip-y     #b00010000)
-
-        (codegen-at! #x100)
-
-        (main)
-        (uxn-call! () brk)
-
-        (define-label! begin) ; yup! that's how i declare a begin it uses the fact that any label will be treated
-        (uxn-call! (2 r) jmp) ; as a function with any amount of args; so it is a "function" without a function prelude and epilogue
-
-        (codegen-at! #x110) ; TODO: actually calculate where to codegen after prelude
-        ))
-
     (define empty-env
       (pipe empty
         (put 'labels empty) ; ff of labels & constants, global
@@ -372,7 +285,7 @@
         ))
 
     ;; env rule rewrite → env'
-    (define (add-macro env rule rewrite)
+    (define (add-macro env rule rewrite literal)
       (let* ((base (λ (exp) (error "couldn't match" exp "to any rewrite rules")))
              (name (car rule))
              (was (get (get env 'macros empty) name base)))
@@ -383,8 +296,8 @@
           (get env 'macros empty)
           name
           (λ (exp)
-            (if (macro-matches? rule exp)
-                (rewrite-macro rule rewrite exp)
+            (if (macro-matches? rule exp literal)
+                (rewrite-macro rule rewrite exp literal)
                 (was exp)))))))
 
     (define (apply-macros env exp)
@@ -402,31 +315,33 @@
 
     ;; env exp → env' exp'
     (define (lookup-toplevel-macros env exp)
-      (let loop ((exp exp) (env env) (acc #n))
+      (let loop ((exp exp) (env env) (acc #n) (substitutions 0))
         (if (null? exp)
-            (values env acc)
+            (if (= substitutions 0) ; lookup toplevel macros until there is no macros that generate macros left
+                (values env acc)
+                (lookup-toplevel-macros env acc))
             (tuple-case (list->tuple (car* exp))
-              ((define-macro-rule rule rewrite)
-               (loop (cdr exp) (add-macro env rule rewrite) acc))
+              ((define-macro-rule literal rule rewrite)
+               (loop (cdr exp) (add-macro env rule rewrite literal) acc (+ substitutions 1)))
               (else
-               (loop (cdr exp) env (append acc (list (car exp)))))))))
+               (loop (cdr exp) env (append acc (list (car exp))) substitutions))))))
 
     (define (resolve env lst)
       (fold (λ (a b)
               (tuple-case b
-                       ((codegen-at ptr*)
-                        (let ((ptr (- ptr* #x100)))
-                          (if (> (len a) ptr)
-                              (error "attempting to codegen-at! on code that was already written " ptr)
-                              (append a (make-list (- ptr (len a)) 0)))))
-                       ((bytes l)
-                        (append a l))
-                       ((unresolved-symbol symbol resolve)
-                        (if-lets ((loc (get (get env 'labels empty) symbol)))
-                          (append a (resolve loc))
-                          (error "couldn't resolve symbol " symbol)))
-                       (else
-                        (error "unknown directive " b))))
+                ((codegen-at ptr*)
+                 (let ((ptr (- ptr* #x100)))
+                   (if (> (len a) ptr)
+                       (error "attempting to codegen-at! on code that was already written " ptr)
+                       (append a (make-list (- ptr (len a)) 0)))))
+                ((bytes l)
+                 (append a l))
+                ((unresolved-symbol symbol resolve)
+                 (if-lets ((loc (get (get env 'labels empty) symbol)))
+                   (append a (resolve loc))
+                   (error "couldn't resolve symbol " symbol)))
+                (else
+                 (error "unknown directive " b))))
             #n
             lst))
 
@@ -436,11 +351,15 @@
          env
          (apply-macros env lst))))
 
+    (define unused-no-complain '(begin))
+
     (define (get-unused env)
-      (ff-fold
-       (λ (a k v) (if v (cons k a) a))
-       #n
-       (get env 'unused empty)))
+      (filter
+       (λ (e) (not (has? unused-no-complain e)))
+       (ff-fold
+        (λ (a k v) (if v (cons k a) a))
+        #n
+        (get env 'unused empty))))
 
     (define (delete-unused-defuns unused lst)
       (filter
@@ -465,6 +384,7 @@
 
       (lets ((opt? (cond ; limit passes to 4
                     ((eq? opt? 0) #f)
+                    ((eq? opt? #f) #f)
                     ((not (number? opt?)) 4)
                     (else
                      (- opt? 1))))
@@ -477,6 +397,9 @@
               (begin
                 (for-each (H warn "unused label:") unused)
                 (resolve env* code*))))))
+
+    (define *prelude*
+      (file->sexps "nienor/prelude.scm"))
 
     (define (attach-prelude lst)
       (append *prelude* lst))

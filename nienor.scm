@@ -29,9 +29,9 @@
        (cond
         ((= (length extra) 1)
          (if mac
-             (lets ((_ lst (n/expand-macros (file->sexps (car extra)))))
+             (lets ((_ lst (n/expand-macros (n/attach-prelude (file->sexps (car extra))))))
                (for-each print lst))
-             (let ((data (n/compile-file (car extra) (if opt? 3 #f))))
+             (let ((data (n/compile-file (car extra) (if opt? 4 #f))))
                (print "Assembled to " (format-number-base2 (len data)) "B")
                (list->file data out)))
          0)
