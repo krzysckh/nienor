@@ -1,0 +1,6 @@
+(define (main)
+  (let ((a 10)
+        (b 30)
+        (c 40)
+        (d 17))
+    (putchar (+ a (+ b (+ c d))))))

@@ -62,16 +62,14 @@
 (define-macro-rule ()
   (deo-with arg at)
   (begin
-    (pus! arg)
-    (pus! at)
+    arg (uxn-call! () nip)
+    at  (uxn-call! () nip)
     (deo!)))
 
 (define-macro-rule ()
   (deo2-with arg at)
   (begin
-    (push! arg)
-    (pus! at)
-    (deo2!)))
+    arg at (uxn-call! () nip) (deo2!)))
 
 (define-macro-rule ()
   (define-simple-deo name addr)
@@ -136,6 +134,10 @@
 (define-label! nigeb)
 (uxn-call! (2 r) jmp)
 
+(define-macro-rule ()
+  (_reverse)
+  ())
+
 (define-macro-rule (_)
   (_reverse a . b)
   (_reverse (_ . b) a))
@@ -153,23 +155,31 @@
   (nigeb . (_reverse . exp)))
 
 (define-simple-deo putchar #x18)
+(define-simple-deo putchar-error #x19)
 
 (define-macro-rule ()
   (debug!)
   (begin (pus! 1) (pus! #x0e) (deo!)))
 
-;; (define (+ a b)
-;;   (push! a) ; i manually push here for the uxn-call! primitive
-;;   (push! b)
-;;   (uxn-call! (2) add))
+(define-macro-rule ()
+  (when exp . body)
+  (if exp (begin . body) (begin)))
 
 (define-binop + add 2)
 (define-binop - sub 2)
+(define-binop * mul 2)
+(define-binop / div 2)
+(define-binop band and 2)
+(define-binop bior ora 2)
+(define-binop bxor eor 2)
 
-;; (define (- a b)
-;;   (push! b)
-;;   (push! a)
-;;   (uxn-call! (2) sub))
+(define-macro-rule ()
+  (> a b)
+  (begin a b (uxn-call! (2) gth) (pus! 0) (uxn-call! () swp)))
+
+(define-macro-rule ()
+  (< a b)
+  (begin a b (uxn-call! (2) lth) (pus! 0) (uxn-call! () swp)))
 
 (define-macro-rule ()
   (bior* a b . c)
@@ -178,16 +188,6 @@
 (define-macro-rule ()
   (bior* a b)
   (bior a b))
-
-(define (bior a b)
-  (push! a)
-  (push! b)
-  (uxn-call! (2) ora))
-
-(define (band a b)
-  (push! a)
-  (push! b)
-  (uxn-call! (2) and))
 
 (define (band8 a b)
   (pus! a)
@@ -223,9 +223,14 @@
   (uxn-call! () equ))
 
 (define-simple-deo2 set-draw-handler! #x20)
+(define-simple-deo2 set-mouse-handler! #x90)
+
 (define-simple-deo2 set-color-r! #x08)
 (define-simple-deo2 set-color-g! #x0a)
 (define-simple-deo2 set-color-b! #x0c)
+
+(define-simple-deo2 set-screen-width! #x22)
+(define-simple-deo2 set-screen-height! #x24)
 
 (define (set-colors! r g b)
   (set-color-r! r)
@@ -279,3 +284,69 @@
 (define (mouse-y)
   (pus! #x94)
   (dei2!))
+
+(define (mouse-state)
+  (pus! #x96)
+  (dei!)
+  (pus! 0)
+  (uxn-call! () swp))
+
+(define (get! addr)
+  (push! addr)
+  (uxn-call! (2) lda))
+
+(define (set! addr value)
+  (push! value)
+  (push! addr)
+  (uxn-call! (2) sta))
+
+(define (get8! addr)
+  (push! addr)
+  (uxn-call! () lda)
+  (pus! 0)
+  (uxn-call! () swp))
+
+(define (set8! addr value)
+  (pus! value)
+  (push! addr)
+  (uxn-call! () sta))
+
+(define-macro-rule ()
+  (with-label label . body)
+  (_with-label label body))
+
+(define-macro-rule ()
+  (jmp! to)
+  (begin
+    to (uxn-call! (2) jmp)))
+
+(define-macro-rule ()
+  (loopn (it from to by) . body)
+  (begin
+    to from
+    (with-label _loop
+      (uxn-call! (2) dup)
+      (allocate-local! it)
+      (begin . body)
+      (free-locals! 1)
+      (+ by (begin)) ; from += by ; begin as i don't have any way to say "take from the top of the stack" lmao!
+      (if (uxn-call! (k 2) gth)
+          (jmp! _loop)
+          (begin
+            (uxn-call! (2) pop)
+            (uxn-call! (2) pop))))))
+
+(define-macro-rule ()
+  (with-local k v . body)
+  (begin
+    v (allocate-local! k)
+    (begin . body)
+    (free-locals! 1)))
+
+(define-macro-rule ()
+  (let ((key val) . rest) . body)
+  (with-local key val (let rest . body)))
+
+(define-macro-rule ()
+  (let ((key val)) . body)
+  (with-local key val . body))

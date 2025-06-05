@@ -143,6 +143,11 @@
                                   at
                                   (add-label env name value 'nah)
                                   acc))
+                           ((nalloc! name n-bytes)
+                            (loop rest
+                                  (+ at n-bytes)
+                                  (add-label env name at)
+                                  (append acc (list (tuple 'bytes (make-list n-bytes 0))))))
                            ((_alloc! name bytes)
                             (let ((bytes (fold
                                           (λ (a b)
@@ -267,6 +272,18 @@
                                    (_ f dat)
                                    (at code env* (f env)))
                               (loop rest at env* (append acc code))))
+                           ((_with-label label body)
+                            (lets ((label-was (get (get env 'labels) label #f))
+                                   (env (add-label env label at))
+                                   (dat (codegen at body))
+                                   (_ f dat)
+                                   (at code env* (f env)))
+                              (loop rest
+                                    at
+                                    (if label-was
+                                        (put env* 'labels (put (get env* 'labels empty) label label-was))
+                                        (put env* 'labels (del (get env* 'labels empty) label)))
+                                    (append acc code))))
                            (else ; funcall
                             (lets ((func (car* exp))
                                    (args (cdr* exp))

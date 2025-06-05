@@ -9,3 +9,7 @@
   (putchar (+ #\o 0))
   (putchar #\newline)
   (exit 128))
+
+;; (define (main)
+;;   (loopn (i 0 10 1)
+;;     (putchar (+ #\0 i))))
