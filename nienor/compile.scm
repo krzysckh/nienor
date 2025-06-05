@@ -63,13 +63,6 @@
         (put 'jsi `(,JSI 0))
         (put 'lit `(,LIT 0))))
 
-    (thread
-     'gensym
-     (let loop ((n 1))
-       (lets ((who _ (next-mail)))
-         (mail who (string->symbol (str "g" n)))
-         (loop (+ n 1)))))
-
     (define (gensym)
       (interact 'gensym '_))
 
@@ -341,13 +334,26 @@
             lst))
 
     (define (compile lst)
+      ;; a toplevel thread didn't seem to compile correctly
+      (thread
+       'gensym
+       (let loop ((n 1))
+         (lets ((who v (next-mail)))
+           (tuple-case v
+             ((exit!)
+              (mail who 'ok))
+             (else
+              (mail who (string->symbol (str "g" n)))
+              (loop (+ n 1)))))))
+
       (lets ((lst (append *prelude* lst))
              (env lst (lookup-toplevel-macros empty-env lst))
              (lst (apply-macros env lst))
              (_ code* env* ((cdr (codegen #x100 lst)) env)))
+        (interact 'gensym (tuple 'exit!))
         (resolve env* code*)))
 
     (define (compile-file filename)
-      (compile (list->sexps (file->list "test.l") (λ _ _) "syntax error:")))
+      (compile (list->sexps (file->list filename) (λ _ _) "syntax error:")))
 
     ))
