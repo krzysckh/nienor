@@ -1,71 +1,44 @@
-(with-codegen-at! #x100
-  ((main)
-   (uxn-call! () brk) ; <- this will be later in a prelude
+;; -*- Owl -*-
 
-   ;; there are some non-standard parens in defun, but that's just for now
-   ;; i'll create a better api later
+(define (+ a b)
+  (push! a) ; i manually push here for the uxn-call! primitive
+  (push! b)
+  (uxn-call! (2) add))
 
-   (defun push! (short)
-     ((_push! _ short)))
+(define (- a b)
+  (push! b)
+  (push! a)
+  (uxn-call! (2) sub))
 
-   (defun pus! (byte)
-     ((_push! byte byte)))
+(define (putchar c)
+  (pus! c)
+  (pus! #x18)
+  (uxn-call! () deo))
 
-   (defun + (a b)
-     ((push! a) ; i manually push here for the uxn-call! primitive
-      (push! b)
-      (uxn-call! (2) add)))
+(define (exit code)
+  (pus! code)
+  (pus! #x0f)
+  (uxn-call! () deo))
 
-   (defun - (a b)
-     ((push! b)
-      (push! a)
-      (uxn-call! (2) sub)))
+(define (equ? a b)
+  (push! a)
+  (push! b)
+  (uxn-call! (2) equ))
 
-   (defun putchar (c)
-     ((pus! c)
-      (pus! #x18)
-      (uxn-call! () deo)))
+(define (eq? a b)
+  (pus! a)
+  (pus! b)
+  (uxn-call! () equ))
 
-   (defun exit (code)
-     ((pus! code)
-      (pus! #x0f)
-      (uxn-call! () deo)))
+(define (puts n)
+  (if (equ? n 0)
+      #t
+      (begin
+        (putchar) ; the string is on the stack, so we don't pass anything
+                  ; there is no arg checking so we "can" do that
+        (puts (- n 1)))))
 
-   (defun equ? (a b)
-     ((push! a)
-      (push! b)
-      (uxn-call! (2) equ)))
-
-   (defun eq? (a b)
-     ((pus! a)
-      (pus! b)
-      (uxn-call! () equ)))
-
-   (defun noop ()
-     ())
-
-   (defun noop2 (_a _b)
-     ())
-
-   (defun print-hello ()
-     ((putchar #\h)
-      (putchar #\e)
-      (putchar #\l)
-      (putchar #\l)
-      (putchar #\o)
-      (putchar #\newline)))
-
-   (defun puts (n)
-     ((if (equ? n 0)
-          #t
-          (noop2
-           (putchar)
-           (puts (- n 1))))))
-
-   (defun main ()
-     ("Hello, World!\n" (puts 14)))
-
-     ;; ((if #t (print-hello) (noop))
-     ;;  (exit (+ #x7f 1))))
-
-   ))
+(define (main)
+  (push! "Hello, World!\n")
+  (puts 14)
+  (exit 128))

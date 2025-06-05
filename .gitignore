@@ -1,1 +1,7 @@
 *.~undo-tree~
+.theme
+.sym
+\#*\#
+*.bin
+*.out
+*temp*
