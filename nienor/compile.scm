@@ -69,7 +69,6 @@
        tpl))
 
     (define (codegen at lst)
-      ;; (print "lst: " lst)
       `(,at
         . ,(λ (env) ; env -> (values at code env')
              (let loop ((lst lst)
@@ -327,6 +326,14 @@
               (else
                (loop (cdr exp) env (append acc (list (car exp))) substitutions))))))
 
+    (define (expand-macros lst env)
+      (lets ((substitutions env* lst (lookup-toplevel-macros env lst)))
+        (if (= substitutions 0)
+            (values
+             env*
+             (apply-macros env* lst))
+            (expand-macros (apply-macros env* lst) env*))))
+
     (define (resolve env lst add-debug-info?)
       (fold (λ (a b)
               (tuple-case b
@@ -353,14 +360,6 @@
             #n
             lst))
 
-    (define (expand-macros lst env)
-      (lets ((substitutions env* lst (lookup-toplevel-macros env lst)))
-        (if (= substitutions 0)
-            (values
-             env*
-             (apply-macros env* lst))
-            (expand-macros (apply-macros env* lst) env*))))
-
     (define unused-no-complain '(nigeb))
 
     (define (get-unused env)
@@ -371,14 +370,17 @@
         #n
         (get env 'unused empty))))
 
-    (define (delete-unused-defuns unused lst)
-      (filter
-       (λ (l)
-         (if (eq? (car* l) '_defun)
-             (not (has? unused (car* (cdr* l))))
-             #t))
-       lst))
-
+    (define (delete-unused-defuns unused lst verbose?)
+      (let loop ((lst lst) (acc #n))
+        (cond
+         ((null? lst) acc)
+         ((and (eq? (car* (car lst)) '_defun)
+               (has? unused (cadr (car lst))))
+          (when verbose?
+            (print "  Deleted " (cadr (car lst))))
+          (loop (cdr lst) acc))
+         (else
+          (loop (cdr lst) (append acc (list (car lst))))))))
 
     (define (codegen-until-empty-epilogue at lst env)
       (lets ((at code* env* ((cdr (codegen at lst)) env))
@@ -391,8 +393,57 @@
                (append code* code)
                env)))))
 
+    (define (uniq lst)
+      (let loop ((lst lst) (acc #n))
+        (cond
+         ((null? lst) acc)
+         ((has? acc (car lst)) (loop (cdr lst) acc))
+         (else
+          (loop (cdr lst) (cons (car lst) acc))))))
+
+    (define (defun->used-symbols exp)
+      (uniq
+       (filter
+        symbol?
+        (let walk ((exp (cdddr exp)) (acc #n))
+          (cond
+           ((null? exp) acc)
+           ((pair? (car exp)) (walk (car exp) (append acc (walk (cdr exp) #n))))
+           (else
+            (walk (cdr exp) (append (list (car exp)) acc))))))))
+
+    (define (find-defun lst name)
+      (let loop ((lst lst))
+        (cond
+         ((null? lst) #f)
+         ((and (or (eq? (car* (car lst)) '_defun)
+                   (eq? (car* (car lst)) '_defun-vector))
+               (eq? (cadr (car lst)) name))
+          (car lst))
+         (else
+          (loop (cdr lst))))))
+
+    ;; This is a better way of finding unused functions.
+    ;; the faster thing is done during codegen, labels that don't have users get marked, and then defuns
+    ;; with them get removed. This function looks from main and tries to find all functions that _are_
+    ;; used, then when we subtract this from "all functions list" we get the list of unused functions :p
+    (define (find-unused lst env)
+      (let ((used
+             (let ((main (find-defun lst 'main)))
+               (let loop ((seen '(main)) (syms (defun->used-symbols main)))
+                 (if (null? syms)
+                     seen
+                     (if-lets ((fun (find-defun lst (car syms))))
+                       (loop (cons (car syms) seen)
+                             (append (cdr syms) (filter
+                                                 (λ (s) (not (has? seen s)))
+                                                 (defun->used-symbols fun))))
+                       (loop seen (cdr syms))))))))
+        (keys (fold del (get env 'labels empty) used))))
+
+    ;; TODO: Add some sort of env to hold these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
-    (define (compile lst opt? with-debug?)
+    (define (compile lst opt? with-debug? only-expand-macros verbose?)
       ;; a toplevel thread didn't seem to compile correctly
       (thread
        'gensym
@@ -414,20 +465,34 @@
                     ;; ((eq? opt? 0) #f)
                     ((eq? opt? #f) #f)
                     ((not (number? opt?)) 4)
-                    (else
-                     (- opt? 1))))
+                    (else opt?)))
              (env (put empty-env 'opt? opt?))
              (env lst (expand-macros lst env))
              (_ code* env* (codegen-until-empty-epilogue #x100 lst env))) ; <- gensym is only needed here
         (interact 'gensym (tuple 'exit!))                                 ; so we can kill it afterwards
         (let ((unused (get-unused env*)))
-          (if (and (number? opt?) (> opt? 0) (not (null? unused)))
-              (compile
-               (delete-unused-defuns unused lst) ; delete unneeded function definitions
-               opt? with-debug?)
-              (let ()
-                (for-each (H warn "unused label:") unused)
-                (values env* (resolve env* code* with-debug?)))))))
+          (when verbose?
+            (print "Cleanup level: " opt?))
+          (cond
+           ((and (number? opt?) (> opt? 0) (not (null? unused)))
+            (compile
+             (delete-unused-defuns unused lst verbose?) ; delete unneeded function definitions
+             (- opt? 1) with-debug? only-expand-macros verbose?))
+            ((or (and (number? opt?) (= opt? 1)) (and (> opt? 0) (null? unused)))
+             ;; aggresively delete unused once
+             ;; TODO: check if only doing this wouldn't be faster than literally re-compiling
+             ;;       everything 3 or so times LMAO
+             ;; TODO: yeah disable the on-the-run label marking and just use this
+             (let ((l (find-unused lst env*)))
+               (compile
+                (delete-unused-defuns l lst verbose?) ; delete unneeded function definitions
+                (- opt? 1) with-debug? only-expand-macros verbose?)))
+            (else
+             (if only-expand-macros
+                 (only-expand-macros lst)
+                 (let ()
+                   (for-each (H warn "unused label:") unused)
+                   (values env* (resolve env* code* with-debug?)))))))))
 
     (define *prelude*
       (file->sexps "nienor/prelude.scm"))
@@ -435,7 +500,7 @@
     (define (attach-prelude lst)
       (append *prelude* lst))
 
-    (define (compile-file filename opt? . att)
-      (compile ((if (null? att) attach-prelude (car att)) (file->sexps filename)) opt? #f))
+    (define (compile-file filename opt? att verbose?)
+      (compile ((if att att attach-prelude) (file->sexps filename)) opt? #f #f verbose?))
 
     ))

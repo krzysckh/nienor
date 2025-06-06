@@ -15,6 +15,7 @@
      (opt?   "-O" "--optimize"       comment "optimize code")
      (np     "-N" "--no-prelude"     comment "don't attach prelude")
      (dump   "-D" "--dump"           comment "compile & disassemble to uxntal - always attaches prelude and optimizes")
+     (V      "-V" "--verbose"        comment "be verbose")
      ;; (ast    "-p" "--print-ast" comment "print the AST")
      )))
 
@@ -32,14 +33,16 @@
             (opt? (get opt 'opt? #f))
             (np (get opt 'np #f))
             (att (if np I n/attach-prelude))
+            (v (get opt 'V #f))
             (dump (get opt 'dump #f)))
        (cond
         ((= (length extra) 1)
          (cond
           (mac
            ;; TODO: generalize -o -
-           (lets ((_ lst (n/expand-macros (att (file->sexps (car extra))) n/empty-env)))
-             (for-each print lst)))
+           (for-each
+            print
+            (call/cc (λ (c) (n/compile (att (file->sexps (car extra))) (if opt? 4 #f) #f c #f)))))
           (dump
            (let ((f (if (equal? out "-")
                         stdout
@@ -48,7 +51,7 @@
              (when (not (eq? f stdout))
                (close-port f))))
           (else
-           (lets ((env data (n/compile-file (car extra) (if opt? 4 #f) att))
+           (lets ((env data (n/compile-file (car extra) (if opt? 4 #f) att v))
                   (n-labels (ff-fold (λ (a k v) (+ a 1)) 0 (get env 'labels empty))))
              (format stdout "Assembled ~a in ~aB (~,2f% used), ~a labels~%"
                      out
