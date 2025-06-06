@@ -64,6 +64,14 @@
   (_alloc! name vals))
 
 (define-macro-rule ()
+  (defvar name)
+  (alloc! name 0 0))
+
+(define-macro-rule ()
+  (defvar name . vs)
+  (alloc! name . vs))
+
+(define-macro-rule ()
   (deo-with arg at)
   (begin
     arg (uxn-call! () nip)
@@ -295,6 +303,7 @@
   (pus! 0)
   (uxn-call! () swp))
 
+;; TODO: these should be macros
 (define (get! addr)
   (push! addr)
   (uxn-call! (2) lda))
@@ -354,3 +363,24 @@
 (define-macro-rule ()
   (let ((key val)) . body)
   (with-local key val . body))
+
+(define (modulo a mod)
+  (- a (* (/ a mod) mod)))
+
+(define-macro-rule ()
+  (noop)
+  (begin))
+
+;; very very inefficient and local-stack exhausting way to print a number
+(define (_print-number n depth)
+  (if (band (equ? n 0) (> depth 0))
+      (noop)
+      (begin
+        (_print-number (/ n 10) (+ depth 1)) ; ouch!
+        (putchar (+ #\0 (modulo n 10))))))
+
+(define-macro-rule ()
+  (print-number n)
+  (begin
+    (_print-number n 0)
+    (putchar #\newline)))

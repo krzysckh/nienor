@@ -103,7 +103,17 @@
                                              (cond
                                               ((string? b) (string->bytes b))
                                               ((symbol? b) (error "_alloc! with variables is not implemented"))
-                                              (else (list b)))))
+                                              ((number? b)
+                                               (if (> b 255)
+                                                   (let ((l (list (>> (band #xff00 b) 8) (band #xff b))))
+                                                     (warn
+                                                      "_alloc:" b
+                                                      "is > 255, allocating it as 2 bytes. consider doing this explicitly with these values: "
+                                                      l "to silence this warning")
+                                                     l)
+                                                   (list b)))
+                                              (else
+                                               (error "i don't know what type" b "is")))))
                                           #n
                                           bytes)))
                               (loop rest

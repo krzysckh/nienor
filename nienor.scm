@@ -50,7 +50,7 @@
           (else
            (lets ((env data (n/compile-file (car extra) (if opt? 4 #f) att))
                   (n-labels (ff-fold (λ (a k v) (+ a 1)) 0 (get env 'labels empty))))
-             (format stdout "Assembled ~a in ~aB (~,2f% used), ~x labels~%"
+             (format stdout "Assembled ~a in ~aB (~,2f% used), ~a labels~%"
                      out
                      (format-number-base2 (len data))
                      (* 100 (/ (len data) (<< 1 16)))
