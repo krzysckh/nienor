@@ -12,60 +12,6 @@
    compile-file)
 
   (begin
-    (define-values (BRK INC POP NIP SWP ROT
-                    DUP OVR EQU NEQ GTH LTH
-                    JMP JCN JSR STH LDZ STZ
-                    LDR STR LDA STA DEI DEO
-                    ADD SUB MUL DIV AND ORA
-                    EOR SFT JCI JMI JSI LIT)
-      (values
-       #x00 #x01 #x02 #x03 #x04 #x05 #x06
-       #x07 #x08 #x09 #x0a #x0b #x0c #x0d
-       #x0e #x0f #x10 #x11 #x12 #x13 #x14
-       #x15 #x16 #x17 #x18 #x19 #x1a #x1b
-       #x1c #x1d #x1e #x1f #x20 #x40 #x60
-       #x80))
-
-    ;; TODO: some simpler opcode calling, actually use the arity i store here
-    (define *opcodes*
-      (pipe empty
-        (put 'brk `(,BRK 0))
-        (put 'inc `(,INC 1))
-        (put 'pop `(,POP 1))
-        (put 'nip `(,NIP 2))
-        (put 'swp `(,SWP 2))
-        (put 'rot `(,ROT 3))
-        (put 'dup `(,DUP 1))
-        (put 'ovr `(,OVR 2))
-        (put 'equ `(,EQU 2))
-        (put 'neq `(,NEQ 2))
-        (put 'gth `(,GTH 2))
-        (put 'lth `(,LTH 2))
-        (put 'jmp `(,JMP 1))
-        (put 'jcn `(,JCN 2))
-        (put 'jsr `(,JSR 1))
-        (put 'sth `(,STH 1))
-        (put 'ldz `(,LDZ 1))
-        (put 'stz `(,STZ 2))
-        (put 'ldr `(,LDR 1))
-        (put 'str `(,STR 2))
-        (put 'lda `(,LDA 2))
-        (put 'sta `(,STA 3))
-        (put 'dei `(,DEI 1))
-        (put 'deo `(,DEO 2))
-        (put 'add `(,ADD 2))
-        (put 'sub `(,SUB 2))
-        (put 'mul `(,MUL 2))
-        (put 'div `(,DIV 2))
-        (put 'and `(,AND 2))
-        (put 'ora `(,ORA 2))
-        (put 'eor `(,EOR 2))
-        (put 'sft `(,SFT 2))
-        (put 'jci `(,JCI 1))
-        (put 'jmi `(,JMI 0))
-        (put 'jsi `(,JSI 0))
-        (put 'lit `(,LIT 0))))
-
     (define (gensym)
       (interact 'gensym '_))
 
@@ -81,11 +27,6 @@
                                  (if keep?   #b10000000 0))))
             (error "unknown opcode: " opc))))
 
-    (define (maybe-opc x) (if (symbol? x) (get *opcodes* x #f) x))
-    (define (short! x)  (bior (maybe-opc x) #b00100000))
-    (define (return! x) (bior (maybe-opc x) #b01000000))
-    (define (keep! x)   (bior (maybe-opc x) #b10000000))
-
     (define (make-defun codegen cont env acc rest at name args body mode)
       (lets ((dat (codegen
                    at
@@ -99,7 +40,7 @@
                      )))
              (_ f dat)
              (at code env* (f env)))
-        (cont rest at env* (append acc code))))
+        (cont rest at env* (append acc (list (tuple 'commentary `(defun ,mode ,name ,args))) code))))
 
     (define (add-label env name value . nounused)
       (let ((labels (get env 'labels empty))
@@ -116,6 +57,12 @@
 
     (define (remove-unused env name)
       (put env 'unused (put (get env 'unused empty) name #f)))
+
+    ;; comment is a list
+    (define (with-comment comment tpl)
+      (list
+       (tuple 'commentary comment)
+       tpl))
 
     (define (codegen at lst)
       ;; (print "lst: " lst)
@@ -137,7 +84,7 @@
                             (loop rest
                                   at
                                   (add-label env label at)
-                                  acc))
+                                  (append acc (list (tuple 'commentary `("label:" ,label))))))
                            ((define-constant name value)
                             (loop rest
                                   at
@@ -147,7 +94,7 @@
                             (loop rest
                                   (+ at n-bytes)
                                   (add-label env name at)
-                                  (append acc (list (tuple 'bytes (make-list n-bytes 0))))))
+                                  (append acc (with-comment `("nalloc!" ,name ,n-bytes) (tuple 'bytes (make-list n-bytes 0))))))
                            ((_alloc! name bytes)
                             (let ((bytes (fold
                                           (λ (a b)
@@ -162,7 +109,7 @@
                               (loop rest
                                     (+ at (len bytes))
                                     (add-label env name at)
-                                    (append acc (list (tuple 'bytes bytes))))))
+                                    (append acc (with-comment `("_alloc!" ,name ,(len bytes)) (tuple 'bytes bytes))))))
                            ((codegen-at! ptr)
                             (loop rest ptr env (append acc (list (tuple 'codegen-at ptr)))))
                            ((_push! mode value)
@@ -214,7 +161,9 @@
                                            (values env (len raw) (list (tuple 'bytes raw)))))
                                         (else
                                          (error "unsupported type for _push!: " value)))))
-                              (loop rest at env (append acc code))))
+                              (loop rest at env (append acc
+                                                        (if (list? value) '() (list (tuple 'commentary `(_push! ,value)))) ; don't comment resolving lists
+                                                        code))))
                            ((free-locals! n)
                             (let ((code `(,LIT 0 ,LDZ  ; load local ptr from 0x0
                                           ,LIT ,n ,SUB ; subtract the amount of freed locals
@@ -226,7 +175,7 @@
                                                        (if (= n 0)
                                                            lst
                                                            (loop rest (- n 1)))))
-                                    (append acc (list (tuple 'bytes code))))))
+                                    (append acc (with-comment `(free-locals! ,n) (tuple 'bytes code))))))
                            ((allocate-local! name)
                             (let ((code `(,LIT 0 ,LDZ      ; load ptr
                                           ,INC             ; inc ptr
@@ -239,7 +188,7 @@
                                rest
                                (+ at (len code))
                                (put env 'locals (cons name (get env 'locals #n)))
-                               (append acc (list (tuple 'bytes code))))))
+                               (append acc (with-comment `(allocate-local! ,name) (tuple 'bytes code))))))
                            ((_defun name args body)
                             (make-defun codegen loop env acc rest at name args body 'normal)) ; continues loop
                            ((_defun-vector name args body)
@@ -253,8 +202,8 @@
                             (let ((resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ,(short! JSR)))))
                               ;; TODO: remove magic length
                               (if-lets ((loc (get (get env 'labels empty) func #f)))
-                                (loop rest (+ at 5) (remove-unused env func) (append acc (list (tuple 'bytes (resolve loc))))) ; great! we have loc rn, we can resolve
-                                (loop rest (+ at 5) (remove-unused env func) (append acc (list (tuple 'unresolved-symbol func resolve))))))) ; we do it later
+                                (loop rest (+ at 5) (remove-unused env func) (append acc (with-comment `(funcall! ,func) (tuple 'bytes (resolve loc))))) ; great! we have loc rn, we can resolve
+                                (loop rest (+ at 5) (remove-unused env func) (append acc (with-comment `(funcall! ,func) (tuple 'unresolved-symbol func resolve))))))) ; we do it later
                            ((if arg then else)
                             (lets ((func (car* exp))
                                    (args (cdr* exp))
@@ -271,7 +220,7 @@
                                                       (define-label! ,end))))
                                    (_ f dat)
                                    (at code env* (f env)))
-                              (loop rest at env* (append acc code))))
+                              (loop rest at env* (append acc (list (tuple 'commentary `(if ,arg))) code))))
                            ((_with-label label body)
                             (lets ((label-was (get (get env 'labels) label #f))
                                    (env (add-label env label at))
@@ -342,14 +291,21 @@
               (else
                (loop (cdr exp) env (append acc (list (car exp))) substitutions))))))
 
-    (define (resolve env lst)
+    (define (resolve env lst add-debug-info?)
       (fold (λ (a b)
               (tuple-case b
+                ((commentary exp)
+                 (if add-debug-info?
+                     (append a (list exp))
+                     a))
                 ((codegen-at ptr*)
-                 (let ((ptr (- ptr* #x100)))
+                 (let ((length (if add-debug-info?
+                                   (len (filter (B not list?) a))
+                                   (len a))) ; ^- this is true for both modes, but just taking len is faster
+                       (ptr (- ptr* #x100)))
                    (if (> (len a) ptr)
                        (error "attempting to codegen-at! on code that was already written " ptr)
-                       (append a (make-list (- ptr (len a)) 0)))))
+                       (append a (make-list (- ptr length) 0)))))
                 ((bytes l)
                  (append a l))
                 ((unresolved-symbol symbol resolve)
@@ -387,7 +343,8 @@
              #t))
        lst))
 
-    (define (compile lst opt?)
+    ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
+    (define (compile lst opt? with-debug?)
       ;; a toplevel thread didn't seem to compile correctly
       (thread
        'gensym
@@ -416,10 +373,10 @@
         (interact 'gensym (tuple 'exit!))                    ; so we can kill it afterwards
         (let ((unused (get-unused env*)))
           (if (and opt? (not (null? unused)))
-              (compile (delete-unused-defuns unused lst) opt?)
+              (compile (delete-unused-defuns unused lst) opt? with-debug?)
               (begin
                 (for-each (H warn "unused label:") unused)
-                (resolve env* code*))))))
+                (resolve env* code* with-debug?))))))
 
     (define *prelude*
       (file->sexps "nienor/prelude.scm"))
@@ -428,6 +385,6 @@
       (append *prelude* lst))
 
     (define (compile-file filename opt? . att)
-      (compile ((if (null? att) attach-prelude (car att)) (file->sexps filename)) opt?))
+      (compile ((if (null? att) attach-prelude (car att)) (file->sexps filename)) opt? #f))
 
     ))
