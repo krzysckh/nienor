@@ -2,6 +2,7 @@
  (owl toplevel)
  (owl args)
  (owl metric)
+ (owl format)
  (nienor common)
  (prefix (nienor dis) d/)
  (prefix (nienor compile) n/))
@@ -36,6 +37,7 @@
         ((= (length extra) 1)
          (cond
           (mac
+           ;; TODO: generalize -o -
            (lets ((_ lst (n/expand-macros (att (file->sexps (car extra))) n/empty-env)))
              (for-each print lst)))
           (dump
@@ -46,8 +48,13 @@
              (when (not (eq? f stdout))
                (close-port f))))
           (else
-           (let ((data (n/compile-file (car extra) (if opt? 4 #f) att)))
-             (print "Assembled to " (format-number-base2 (len data)) "B")
+           (lets ((env data (n/compile-file (car extra) (if opt? 4 #f) att))
+                  (n-labels (ff-fold (λ (a k v) (+ a 1)) 0 (get env 'labels empty))))
+             (format stdout "Assembled ~a in ~aB (~,2f% used), ~x labels~%"
+                     out
+                     (format-number-base2 (len data))
+                     (* 100 (/ (len data) (<< 1 16)))
+                     n-labels)
              (list->file data out))))
          0)
         ((> (length extra) 1) (error "Too many files."))

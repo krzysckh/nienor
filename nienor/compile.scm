@@ -199,11 +199,17 @@
                                   (keep?   (has? mode 'k)))
                               (loop rest (+ at 1) env (append acc (list (opcode opc short? return? keep?))))))
                            ((funcall! func)
-                            (let ((resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ,(short! JSR)))))
-                              ;; TODO: remove magic length
-                              (if-lets ((loc (get (get env 'labels empty) func #f)))
-                                (loop rest (+ at 5) (remove-unused env func) (append acc (with-comment `(funcall! ,func) (tuple 'bytes (resolve loc))))) ; great! we have loc rn, we can resolve
-                                (loop rest (+ at 5) (remove-unused env func) (append acc (with-comment `(funcall! ,func) (tuple 'unresolved-symbol func resolve))))))) ; we do it later
+                            (if (eq? func 'nigeb) ; TODO: generalize
+                                (loop rest at env (append acc (list (tuple 'commentary '(removed nigeb call)))))
+                                (let ((resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ,(short! JSR)))))
+                                  (loop
+                                   rest
+                                   (+ at 5) ; TODO: remove magic length
+                                   (remove-unused env func)
+                                   (append acc (with-comment `(funcall! ,func)
+                                                             (if-lets ((loc (get (get env 'labels empty) func #f)))
+                                                               (tuple 'bytes (resolve loc))                    ; great! we have loc rn, we can resolve
+                                                               (tuple 'unresolved-symbol func resolve)))))))) ; we do it later
                            ((if arg then else)
                             (lets ((func (car* exp))
                                    (args (cdr* exp))
@@ -318,12 +324,12 @@
             lst))
 
     (define (expand-macros lst env)
-      (lets ((substitutions env lst (lookup-toplevel-macros env lst)))
+      (lets ((substitutions env* lst (lookup-toplevel-macros env lst)))
         (if (= substitutions 0)
             (values
-             env
-             (apply-macros env lst))
-            (expand-macros (apply-macros env lst) env))))
+             env*
+             (apply-macros env* lst))
+            (expand-macros (apply-macros env* lst) env*))))
 
     (define unused-no-complain '(nigeb))
 
@@ -363,7 +369,7 @@
               (loop (+ n 1)))))))
 
       (lets ((opt? (cond ; limit passes to 4
-                    ((eq? opt? 0) #f)
+                    ;; ((eq? opt? 0) #f)
                     ((eq? opt? #f) #f)
                     ((not (number? opt?)) 4)
                     (else
@@ -372,11 +378,13 @@
              (_ code* env* ((cdr (codegen #x100 lst)) env))) ; <- gensym is only needed here
         (interact 'gensym (tuple 'exit!))                    ; so we can kill it afterwards
         (let ((unused (get-unused env*)))
-          (if (and opt? (not (null? unused)))
-              (compile (delete-unused-defuns unused lst) opt? with-debug?)
-              (begin
+          (if (and (number? opt?) (> opt? 0) (not (null? unused)))
+              (compile
+               (delete-unused-defuns unused lst) ; delete unneeded function definitions
+               opt? with-debug?)
+              (let ()
                 (for-each (H warn "unused label:") unused)
-                (resolve env* code* with-debug?))))))
+                (values env* (resolve env* code* with-debug?)))))))
 
     (define *prelude*
       (file->sexps "nienor/prelude.scm"))

@@ -1,6 +1,6 @@
 *.~undo-tree~
 .theme
-.sym
+*.sym
 \#*\#
 *.bin
 *.out

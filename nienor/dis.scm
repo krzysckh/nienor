@@ -56,7 +56,7 @@
           (loop (cdr code) (+ at 1))))))
 
     (define (disassemble-file filename out)
-      (let ((data (n/compile (n/attach-prelude (file->sexps filename)) 4 #t)))
+      (lets ((_ data (n/compile (n/attach-prelude (file->sexps filename)) 4 #t)))
         (disassemble data out)))
 
     ))
