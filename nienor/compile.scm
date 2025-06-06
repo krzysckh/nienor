@@ -397,7 +397,12 @@
              ((exit!)
               (mail who 'ok))
              (else
-              (mail who (string->symbol (str "g" n)))
+              (mail who (string->symbol (str "@@gensym__" n)))
+              ;; was: (mail who (string->symbol (str "g" n)))
+              ;; i had a crazy bug where i named a variable g1 & g2 and it freaked out on an if statement
+              ;; which - coincidentally - is the only piece of codegen that uses gensyms
+              ;; makes you wonder...
+              ;; TODO: use temporary labels in if
               (loop (+ n 1)))))))
 
       (lets ((opt? (cond ; limit passes to 4

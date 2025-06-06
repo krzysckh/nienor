@@ -16,6 +16,10 @@
   (_defun f () body))
 
 (define-macro-rule ()
+  (define name value)
+  (define-constant name value))
+
+(define-macro-rule ()
   (define (f . arg) . body)
   (_defun f arg body))
 
