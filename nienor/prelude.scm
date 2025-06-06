@@ -64,12 +64,12 @@
   (_alloc! name vals))
 
 (define-macro-rule ()
-  (defvar name)
-  (alloc! name 0 0))
-
-(define-macro-rule ()
   (defvar name . vs)
   (alloc! name . vs))
+
+(define-macro-rule ()
+  (defvar name)
+  (alloc! name 0 0))
 
 (define-macro-rule ()
   (deo-with arg at)
@@ -103,17 +103,28 @@
       _arg1 _arg2
       (uxn-call! modes uxn-op))))
 
-(define-constant color-1 0)
-(define-constant color-2 1)
-(define-constant color-3 2)
-(define-constant color-4 3)
+(define color-1 0)
+(define color-2 1)
+(define color-3 2)
+(define color-4 3)
 
-(define-constant fill-mode  #b10000000)
-(define-constant pixel-mode #b00000000)
-(define-constant layer-0    #b00000000)
-(define-constant layer-1    #b01000000)
-(define-constant flip-x     #b00100000)
-(define-constant flip-y     #b00010000)
+(define fill-mode  #b10000000)
+(define pixel-mode #b00000000)
+(define layer-0    #b00000000)
+(define layer-1    #b01000000)
+(define flip-x     #b00100000)
+(define flip-y     #b00010000)
+
+(define bg-dot     #x00)
+(define bg-fill-br #x80)
+(define bg-fill-bl #x90)
+(define bg-fill-tr #xa0)
+(define bg-fill-tl #xb0)
+(define fg-dot     #x40)
+(define fg-fill-br #xc0)
+(define fg-fill-bl #xd0)
+(define fg-fill-tr #xe0)
+(define fg-fill-tl #xf0)
 
 (codegen-at! #x100)
 

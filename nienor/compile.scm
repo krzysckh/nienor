@@ -209,7 +209,7 @@
                                   (keep?   (has? mode 'k)))
                               (loop rest (+ at 1) env (append acc (list (opcode opc short? return? keep?))))))
                            ((funcall! func)
-                            (if (eq? func 'nigeb) ; TODO: generalize
+                            (if (and (eq? func 'nigeb) (get env 'opt? #f)) ; TODO: generalize
                                 (loop rest at env (append acc (list (tuple 'commentary '(removed nigeb call)))))
                                 (let ((resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ,(short! JSR)))))
                                   (loop
@@ -265,6 +265,7 @@
         (put 'locals #n)    ; a list, newest consed before, then removed at free-locals!
         (put 'macros empty) ; ff of macro-name -> λ (exp) -> rewritten
         (put 'unused empty) ; ff of label -> truthy value when unused
+        (put 'opt?   #f)    ; should code be optimised?
         ))
 
     ;; env rule rewrite → env'
@@ -384,7 +385,8 @@
                     ((not (number? opt?)) 4)
                     (else
                      (- opt? 1))))
-             (env lst (expand-macros lst empty-env))
+             (env (put empty-env 'opt? opt?))
+             (env lst (expand-macros lst env))
              (_ code* env* ((cdr (codegen #x100 lst)) env))) ; <- gensym is only needed here
         (interact 'gensym (tuple 'exit!))                    ; so we can kill it afterwards
         (let ((unused (get-unused env*)))
