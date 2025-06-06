@@ -39,7 +39,12 @@
            (lets ((_ lst (n/expand-macros (att (file->sexps (car extra))) n/empty-env)))
              (for-each print lst)))
           (dump
-           (d/disassemble-file (car extra)))
+           (let ((f (if (equal? out "-")
+                        stdout
+                        (open-output-file out))))
+             (d/disassemble-file (car extra) f)
+             (when (not (eq? f stdout))
+               (close-port f))))
           (else
            (let ((data (n/compile-file (car extra) (if opt? 4 #f) att)))
              (print "Assembled to " (format-number-base2 (len data)) "B")
