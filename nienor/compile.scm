@@ -55,6 +55,10 @@
                    unused)
                unused)))))
 
+    ;; mark label (defun) as important (don't delete it when of no use)
+    (define (mark-important env name)
+      (put env 'unused (put (get env 'unused empty) name #f)))
+
     (define (remove-unused env name)
       (put env 'unused (put (get env 'unused empty) name #f)))
 
@@ -67,7 +71,7 @@
     (define (codegen at lst)
       ;; (print "lst: " lst)
       `(,at
-        . ,(λ (env) ; env -> (values code env')
+        . ,(λ (env) ; env -> (values at code env')
              (let loop ((lst lst)
                         (at at)
                         (env env)
@@ -211,15 +215,19 @@
                            ((funcall! func)
                             (if (and (eq? func 'nigeb) (get env 'opt? #f)) ; TODO: generalize
                                 (loop rest at env (append acc (list (tuple 'commentary '(removed nigeb call)))))
-                                (let ((resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ,(short! JSR)))))
+                                (lets ((dat (codegen at `((_push! _ ,func))))
+                                       (_ f dat)
+                                       (at code env* (f env)))
                                   (loop
                                    rest
-                                   (+ at 5) ; TODO: remove magic length
-                                   (remove-unused env func)
-                                   (append acc (with-comment `(funcall! ,func)
-                                                             (if-lets ((loc (get (get env 'labels empty) func #f)))
-                                                               (tuple 'bytes (resolve loc))                    ; great! we have loc rn, we can resolve
-                                                               (tuple 'unresolved-symbol func resolve)))))))) ; we do it later
+                                   (+ at 1) ; +1 because of JSR2
+                                   env*
+                                   (append
+                                    acc                                          ; old code
+                                    (list (tuple 'commentary `(funcall! ,func))) ; comment
+                                    code                                         ; push function
+                                    (list (tuple 'bytes `(,(short! JSR))))       ; jump
+                                    )))))
                            ((if arg then else)
                             (lets ((func (car* exp))
                                    (args (cdr* exp))
@@ -249,6 +257,16 @@
                                         (put env* 'labels (put (get env* 'labels empty) label label-was))
                                         (put env* 'labels (del (get env* 'labels empty) label)))
                                     (append acc code))))
+                           ((_λ args body)
+                            (let ((name (gensym))
+                                  (resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc)))))
+                              (loop
+                               rest
+                               (+ at 4)
+                               (mark-important
+                                (put env 'epilogue (append (get env 'epilogue #n) `((_defun ,name ,args ,body))))
+                                name)
+                               (append acc (with-comment `(λ ,name ,args) (tuple 'unresolved-symbol name resolve))))))
                            (else ; funcall
                             (lets ((func (car* exp))
                                    (args (cdr* exp))
@@ -261,11 +279,12 @@
 
     (define empty-env
       (pipe empty
-        (put 'labels empty) ; ff of labels & constants, global
-        (put 'locals #n)    ; a list, newest consed before, then removed at free-locals!
-        (put 'macros empty) ; ff of macro-name -> λ (exp) -> rewritten
-        (put 'unused empty) ; ff of label -> truthy value when unused
-        (put 'opt?   #f)    ; should code be optimised?
+        (put 'labels   empty) ; ff of labels & constants, global
+        (put 'locals   #n)    ; a list, newest consed before, then removed at free-locals!
+        (put 'macros   empty) ; ff of macro-name -> λ (exp) -> rewritten
+        (put 'unused   empty) ; ff of label -> truthy value when unused
+        (put 'opt?     #f)    ; should code be optimised?
+        (put 'epilogue #n)    ; epilogue compiled after 1st codegen pass.
         ))
 
     ;; env rule rewrite → env'
@@ -360,6 +379,18 @@
              #t))
        lst))
 
+
+    (define (codegen-until-empty-epilogue at lst env)
+      (lets ((at code* env* ((cdr (codegen at lst)) env))
+             (epilogue (get env* 'epilogue #n)))
+        (if (null? epilogue)
+            (values at code* env*)
+            (lets ((at code env (codegen-until-empty-epilogue at epilogue (put env* 'epilogue #n))))
+              (values
+               at
+               (append code* code)
+               env)))))
+
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
     (define (compile lst opt? with-debug?)
       ;; a toplevel thread didn't seem to compile correctly
@@ -387,8 +418,8 @@
                      (- opt? 1))))
              (env (put empty-env 'opt? opt?))
              (env lst (expand-macros lst env))
-             (_ code* env* ((cdr (codegen #x100 lst)) env))) ; <- gensym is only needed here
-        (interact 'gensym (tuple 'exit!))                    ; so we can kill it afterwards
+             (_ code* env* (codegen-until-empty-epilogue #x100 lst env))) ; <- gensym is only needed here
+        (interact 'gensym (tuple 'exit!))                                 ; so we can kill it afterwards
         (let ((unused (get-unused env*)))
           (if (and (number? opt?) (> opt? 0) (not (null? unused)))
               (compile

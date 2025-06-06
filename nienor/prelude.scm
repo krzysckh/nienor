@@ -36,6 +36,14 @@
   (_push! byte it))
 
 (define-macro-rule ()
+  (λ args . body)
+  (_λ args body))
+
+(define-macro-rule ()
+  (lambda args . body)
+  (_λ args body))
+
+(define-macro-rule ()
   (deo!)
   (uxn-call! () deo))
 
