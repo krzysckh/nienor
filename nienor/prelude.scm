@@ -111,6 +111,10 @@
       _arg1 _arg2
       (uxn-call! modes uxn-op))))
 
+(define-macro-rule ()
+  (with-label label . body)
+  (_with-label label body))
+
 (define color-1 0)
 (define color-2 1)
 (define color-3 2)
@@ -147,11 +151,6 @@
 (brk!)
 
 ;;---
-
-;; now jump with code generation to #x110 (arbitrary number after calling #x100,
-;; enough to hold the bootstrap part)
-(codegen-at! #x110) ; TODO: actually calculate where to codegen after prelude
-
 
 ;; I define begin with no special syntax treatment
 ;; it's a hack as follows, i declare a `nigeb' label, which is begin backwards
@@ -342,10 +341,6 @@
   (pus! value)
   (push! addr)
   (uxn-call! () sta))
-
-(define-macro-rule ()
-  (with-label label . body)
-  (_with-label label body))
 
 (define-macro-rule ()
   (jmp! to)

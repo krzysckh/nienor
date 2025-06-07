@@ -16,7 +16,6 @@
      (np     "-N" "--no-prelude"     comment "don't attach prelude")
      (dump   "-D" "--dump"           comment "compile & disassemble to uxntal - always attaches prelude and optimizes")
      (V      "-V" "--verbose"        comment "be verbose")
-     ;; (ast    "-p" "--print-ast" comment "print the AST")
      )))
 
 (λ (args)

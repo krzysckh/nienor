@@ -109,7 +109,7 @@
                                              a
                                              (cond
                                               ((string? b) (string->bytes b))
-                                              ((symbol? b) (error "_alloc! with variables is not implemented"))
+                                              ((symbol? b) (error "_alloc! with labels is not implemented"))
                                               ((number? b)
                                                (if (> b 255)
                                                    (let ((l (list (>> (band #xff00 b) 8) (band #xff b))))
