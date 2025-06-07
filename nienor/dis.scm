@@ -55,8 +55,8 @@
           (format out "|~4,'0x   ~2,'0x          ( ~a )~%" at (car code) (comment code))
           (loop (cdr code) (+ at 1))))))
 
-    (define (disassemble-file filename out)
-      (lets ((_ data (n/compile (n/attach-prelude (file->sexps filename)) 4 #t #f #f)))
+    (define (disassemble-file filename out opt?)
+      (lets ((_ data (n/compile (n/attach-prelude (file->sexps filename)) opt? #t #f #f)))
         (disassemble data out)))
 
     ))

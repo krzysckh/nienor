@@ -46,11 +46,11 @@
            (let ((f (if (equal? out "-")
                         stdout
                         (open-output-file out))))
-             (d/disassemble-file (car extra) f)
+             (d/disassemble-file (car extra) f opt?)
              (when (not (eq? f stdout))
                (close-port f))))
           (else
-           (lets ((env data (n/compile-file (car extra) (if opt? 4 #f) att v))
+           (lets ((env data (n/compile-file (car extra) opt? att v))
                   (n-labels (ff-fold (λ (a k v) (+ a 1)) 0 (get env 'labels empty))))
              (format stdout "Assembled ~a in ~aB (~,2f% used), ~a labels~%"
                      out

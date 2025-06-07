@@ -411,7 +411,8 @@
       (let loop ((lst lst) (acc #n))
         (cond
          ((null? lst) acc)
-         ((and (eq? (car* (car lst)) '_defun)
+         ((and (or (eq? (car* (car lst)) '_defun)
+                   (eq? (car* (car lst)) '_defun-vector))
                (not (has? used (cadr (car lst)))))
           (when verbose?
             (print "  Deleted " (cadr (car lst))))
