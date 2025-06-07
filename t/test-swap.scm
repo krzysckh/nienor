@@ -41,5 +41,5 @@
       (set! *frame-ctr* (+ (get! *frame-ctr*) 1)))
 
   (let ((color-bits (band #x0f (+ (get! *face-mode*) 1))))
-    (sprite! (mouse-x) (mouse-y) *face* 0 0 0 0 color-bits)
+    (sprite! (mouse-x) (mouse-y) *face* 0 layer-1 0 0 color-bits)
     (set! *face-mode* color-bits)))

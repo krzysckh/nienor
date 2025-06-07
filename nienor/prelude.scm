@@ -229,7 +229,7 @@
   (push! a)
 
   (pus! b)
-  (pus! 4)
+  (pus! #x40)
   (uxn-call! () sft)
 
   (uxn-call! (2) sft))
@@ -403,3 +403,26 @@
   (begin
     (_print-number n 0)
     (putchar #\newline)))
+
+(define (puts-static ptr)
+  (if (equ? (get8! ptr) 0)
+      #t
+      (begin
+        (putchar (get8! ptr))
+        (puts-static (+ ptr 1)))))
+
+;; https://github.com/krzysckh/goofing/blob/master/uxn-helpers.c
+;; https://en.wikipedia.org/wiki/Xorshift
+;; also sorry i'm taking 2 bytes out of your rom
+(alloc! *rand-seed-state* 8 91)
+
+(define (rand)
+  (let ((x (get! *rand-seed-state*))
+        (x (bxor x (<< x 3)))
+        (x (bxor x (>> x 7)))
+        (x (bxor x (<< x 1))))
+    (set! *rand-seed-state* x)
+    x))
+
+(define (srand x)
+  (set! *rand-seed-state* x))
