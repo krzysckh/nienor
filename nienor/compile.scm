@@ -15,6 +15,26 @@
     (define (gensym)
       (interact 'gensym '_))
 
+    (define (start-gensym!)
+      (thread
+       'gensym
+       (let loop ((n 1))
+         (lets ((who v (next-mail)))
+           (tuple-case v
+             ((exit!)
+              (mail who 'ok))
+             (else
+              (mail who (string->symbol (str "@@gensym__" n)))
+              ;; was: (mail who (string->symbol (str "g" n)))
+              ;; i had a crazy bug where i named a variable g1 & g2 and it freaked out on an if statement
+              ;; which - coincidentally - is the only piece of codegen that uses gensyms
+              ;; makes you wonder...
+              ;; TODO: use temporary labels in if
+              (loop (+ n 1))))))))
+
+    (define (kill-gensym!)
+      (interact 'gensym (tuple 'exit!)))
+
     (define (bior* . l) (fold bior 0 l))
 
     (define (opcode opc short? return? keep?)
@@ -42,25 +62,9 @@
              (at code env* (f env)))
         (cont rest at env* (append acc (list (tuple 'commentary `(defun ,mode ,name ,args))) code))))
 
-    (define (add-label env name value . nounused)
-      (let ((labels (get env 'labels empty))
-            (unused (get env 'unused empty)))
-        (lets ((env (put env 'labels (put labels name value))))
-          (put
-           env
-           'unused
-           (if (null? nounused)
-               (if (get unused name #t)
-                   (put unused name #t)
-                   unused)
-               unused)))))
-
-    ;; mark label (defun) as important (don't delete it when of no use)
-    (define (mark-important env name)
-      (put env 'unused (put (get env 'unused empty) name #f)))
-
-    (define (remove-unused env name)
-      (put env 'unused (put (get env 'unused empty) name #f)))
+    (define (add-label env name value)
+      (let ((labels (get env 'labels empty)))
+        (put env 'labels (put labels name value))))
 
     ;; comment is a list
     (define (with-comment comment tpl)
@@ -91,7 +95,7 @@
                            ((define-constant name value)
                             (loop rest
                                   at
-                                  (add-label env name value 'nah)
+                                  (add-label env name value)
                                   acc))
                            ((nalloc! name n-bytes)
                             (loop rest
@@ -122,7 +126,7 @@
                               (loop rest
                                     (+ at (len bytes))
                                     (add-label env name at)
-                                    (append acc (with-comment `("_alloc!" ,name ,(len bytes)) (tuple 'bytes bytes))))))
+                                    (append acc (with-comment `("space allocated for" ,name "(" ,(len bytes) "bytes )") (tuple 'bytes bytes))))))
                            ((codegen-at! ptr)
                             (loop rest ptr env (append acc (list (tuple 'codegen-at ptr)))))
                            ((_push! mode value)
@@ -152,7 +156,7 @@
                                                                   `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc))))))
                                                ;; TODO: remove magic length, dry with funcall!
                                                (values
-                                                (remove-unused env value)
+                                                env
                                                 (+ at (if byte? 2 4))
                                                 (if-lets ((loc (get (get env 'labels empty) value #f)))
                                                   (list (tuple 'bytes (resolve loc))) ; great! we have loc rn, we can resolve
@@ -178,17 +182,19 @@
                                                         (if (list? value) '() (list (tuple 'commentary `(_push! ,value)))) ; don't comment resolving lists
                                                         code))))
                            ((free-locals! n)
-                            (let ((code `(,LIT 0 ,LDZ  ; load local ptr from 0x0
-                                          ,LIT ,n ,SUB ; subtract the amount of freed locals
-                                          ,LIT 0 ,STZ  ; save new local ptr to 0x0
-                                          )))
-                              (loop rest
-                                    (+ at (len code))
-                                    (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
-                                                       (if (= n 0)
-                                                           lst
-                                                           (loop rest (- n 1)))))
-                                    (append acc (with-comment `(free-locals! ,n) (tuple 'bytes code))))))
+                            (if (eq? n 0)
+                                (loop rest at env (append acc (list (tuple 'commentary '(removed free-locals! 0))))) ; this is a peephole optimization
+                                (let ((code `(,LIT 0 ,LDZ  ; load local ptr from 0x0
+                                              ,LIT ,n ,SUB ; subtract the amount of freed locals
+                                              ,LIT 0 ,STZ  ; save new local ptr to 0x0
+                                              )))
+                                  (loop rest
+                                        (+ at (len code))
+                                        (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
+                                                           (if (= n 0)
+                                                               lst
+                                                               (loop rest (- n 1)))))
+                                        (append acc (with-comment `(free-locals! ,n) (tuple 'bytes code)))))))
                            ((allocate-local! name)
                             (let ((code `(,LIT 0 ,LDZ      ; load ptr
                                           ,INC             ; inc ptr
@@ -262,9 +268,7 @@
                               (loop
                                rest
                                (+ at 4)
-                               (mark-important
-                                (put env 'epilogue (append (get env 'epilogue #n) `((_defun ,name ,args ,body))))
-                                name)
+                               (put env 'epilogue (append (get env 'epilogue #n) `((_defun ,name ,args ,body))))
                                (append acc (with-comment `(λ ,name ,args) (tuple 'unresolved-symbol name resolve))))))
                            (else ; funcall
                             (lets ((func (car* exp))
@@ -281,7 +285,6 @@
         (put 'labels   empty) ; ff of labels & constants, global
         (put 'locals   #n)    ; a list, newest consed before, then removed at free-locals!
         (put 'macros   empty) ; ff of macro-name -> λ (exp) -> rewritten
-        (put 'unused   empty) ; ff of label -> truthy value when unused
         (put 'opt?     #f)    ; should code be optimised?
         (put 'epilogue #n)    ; epilogue compiled after 1st codegen pass.
         ))
@@ -360,28 +363,6 @@
             #n
             lst))
 
-    (define unused-no-complain '(nigeb))
-
-    (define (get-unused env)
-      (filter
-       (λ (e) (not (has? unused-no-complain e)))
-       (ff-fold
-        (λ (a k v) (if v (cons k a) a))
-        #n
-        (get env 'unused empty))))
-
-    (define (delete-unused-defuns unused lst verbose?)
-      (let loop ((lst lst) (acc #n))
-        (cond
-         ((null? lst) acc)
-         ((and (eq? (car* (car lst)) '_defun)
-               (has? unused (cadr (car lst))))
-          (when verbose?
-            (print "  Deleted " (cadr (car lst))))
-          (loop (cdr lst) acc))
-         (else
-          (loop (cdr lst) (append acc (list (car lst))))))))
-
     (define (codegen-until-empty-epilogue at lst env)
       (lets ((at code* env* ((cdr (codegen at lst)) env))
              (epilogue (get env* 'epilogue #n)))
@@ -423,76 +404,44 @@
          (else
           (loop (cdr lst))))))
 
-    ;; This is a better way of finding unused functions.
-    ;; the faster thing is done during codegen, labels that don't have users get marked, and then defuns
-    ;; with them get removed. This function looks from main and tries to find all functions that _are_
-    ;; used, then when we subtract this from "all functions list" we get the list of unused functions :p
-    (define (find-unused lst env)
-      (let ((used
-             (let ((main (find-defun lst 'main)))
-               (let loop ((seen '(main)) (syms (defun->used-symbols main)))
-                 (if (null? syms)
-                     seen
-                     (if-lets ((fun (find-defun lst (car syms))))
-                       (loop (cons (car syms) seen)
-                             (append (cdr syms) (filter
-                                                 (λ (s) (not (has? seen s)))
-                                                 (defun->used-symbols fun))))
-                       (loop seen (cdr syms))))))))
-        (keys (fold del (get env 'labels empty) used))))
+    ;; This function looks from main and tries to find all functions that _are_ used
+    (define (find-used lst)
+      (let ((main (find-defun lst 'main)))
+        (let loop ((seen '(main)) (syms (defun->used-symbols main)))
+          (if (null? syms)
+              seen
+              (if-lets ((fun (find-defun lst (car syms))))
+                (loop (cons (car syms) seen)
+                      (append (cdr syms) (filter
+                                          (λ (s) (not (has? seen s)))
+                                          (defun->used-symbols fun))))
+                (loop seen (cdr syms)))))))
 
-    ;; TODO: Add some sort of env to hold these options
+    (define (keep-only-used-defuns used lst verbose?)
+      (let loop ((lst lst) (acc #n))
+        (cond
+         ((null? lst) acc)
+         ((and (eq? (car* (car lst)) '_defun)
+               (not (has? used (cadr (car lst)))))
+          (when verbose?
+            (print "  Deleted " (cadr (car lst))))
+          (loop (cdr lst) acc))
+         (else
+          (loop (cdr lst) (append acc (list (car lst))))))))
+
+    ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
     (define (compile lst opt? with-debug? only-expand-macros verbose?)
-      ;; a toplevel thread didn't seem to compile correctly
-      (thread
-       'gensym
-       (let loop ((n 1))
-         (lets ((who v (next-mail)))
-           (tuple-case v
-             ((exit!)
-              (mail who 'ok))
-             (else
-              (mail who (string->symbol (str "@@gensym__" n)))
-              ;; was: (mail who (string->symbol (str "g" n)))
-              ;; i had a crazy bug where i named a variable g1 & g2 and it freaked out on an if statement
-              ;; which - coincidentally - is the only piece of codegen that uses gensyms
-              ;; makes you wonder...
-              ;; TODO: use temporary labels in if
-              (loop (+ n 1)))))))
+      (start-gensym!) ; a toplevel thread didn't seem to compile correctly
 
-      (lets ((opt? (cond ; limit passes to 4
-                    ;; ((eq? opt? 0) #f)
-                    ((eq? opt? #f) #f)
-                    ((not (number? opt?)) 4)
-                    (else opt?)))
-             (env (put empty-env 'opt? opt?))
+      (lets ((env (put empty-env 'opt? opt?))
              (env lst (expand-macros lst env))
+             (lst (if opt? (keep-only-used-defuns (find-used lst) lst verbose?) lst)) ; delete unneeded function definitions
              (_ code* env* (codegen-until-empty-epilogue #x100 lst env))) ; <- gensym is only needed here
-        (interact 'gensym (tuple 'exit!))                                 ; so we can kill it afterwards
-        (let ((unused (get-unused env*)))
-          (when verbose?
-            (print "Cleanup level: " opt?))
-          (cond
-           ((and (number? opt?) (> opt? 0) (not (null? unused)))
-            (compile
-             (delete-unused-defuns unused lst verbose?) ; delete unneeded function definitions
-             (- opt? 1) with-debug? only-expand-macros verbose?))
-            ((or (and (number? opt?) (= opt? 1)) (and (> opt? 0) (null? unused)))
-             ;; aggresively delete unused once
-             ;; TODO: check if only doing this wouldn't be faster than literally re-compiling
-             ;;       everything 3 or so times LMAO
-             ;; TODO: yeah disable the on-the-run label marking and just use this
-             (let ((l (find-unused lst env*)))
-               (compile
-                (delete-unused-defuns l lst verbose?) ; delete unneeded function definitions
-                (- opt? 1) with-debug? only-expand-macros verbose?)))
-            (else
-             (if only-expand-macros
-                 (only-expand-macros lst)
-                 (let ()
-                   (for-each (H warn "unused label:") unused)
-                   (values env* (resolve env* code* with-debug?)))))))))
+        (kill-gensym!)                                                    ; so we can kill it afterwards
+        (if only-expand-macros
+            (only-expand-macros lst)
+            (values env* (resolve env* code* with-debug?)))))
 
     (define *prelude*
       (file->sexps "nienor/prelude.scm"))
@@ -502,5 +451,4 @@
 
     (define (compile-file filename opt? att verbose?)
       (compile ((if att att attach-prelude) (file->sexps filename)) opt? #f #f verbose?))
-
     ))
