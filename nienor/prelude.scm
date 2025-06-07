@@ -68,6 +68,11 @@
   (_push! byte x))
 
 (define-macro-rule ()
+  (byte->short x)
+  (begin
+    x (pus! 0) (uxn-call! () swp)))
+
+(define-macro-rule ()
   (alloc! name . vals)
   (_alloc! name vals))
 
@@ -244,7 +249,9 @@
 (define (equ? a b)
   (push! a)
   (push! b)
-  (uxn-call! (2) equ))
+  (uxn-call! (2) equ)
+  (pus! 0)
+  (uxn-call! () swp))
 
 ;; byte equal
 (define (eq? a b)
@@ -356,8 +363,9 @@
       (allocate-local! it)
       (begin . body)
       (free-locals! 1)
+      ;; (debug!)
       (+ by (begin)) ; from += by ; begin as i don't have any way to say "take from the top of the stack" lmao!
-      (if (uxn-call! (k 2) gth)
+      (if (byte->short (uxn-call! (k 2) gth))
           (jmp! _loop)
           (begin
             (uxn-call! (2) pop)
@@ -387,9 +395,10 @@
 
 ;; very very inefficient and local-stack exhausting way to print a number
 (define (_print-number n depth)
-  (if (band (equ? n 0) (> depth 0))
+  (if (equ? 1 (band (equ? n 0) (> depth 0)))
       (noop)
       (begin
+        ;; (debug!)
         (_print-number (/ n 10) (+ depth 1)) ; ouch!
         (putchar (+ #\0 (modulo n 10))))))
 

@@ -38,7 +38,7 @@
     (loopn (i 0 64 1)
       (loopn (j 0 64 1)
         (set8! (+ *state* (+ (* (/ my 10) 64) (/ mx 10))) 1)
-         (when (equ? 1 (get8! (+ *state* (+ (* 64 i) j))))
+         (when (get8! (+ *state* (+ (* 64 i) j)))
            (sprite! (* j 10) (* i 10) smiley-sprite 0 0 0 0 color-1))))))
 
 (define (main)

@@ -232,14 +232,15 @@
                               (end (gensym))
                               (then-loc (gensym))
                               (f (codegen at `(,arg
-                                                 (_push! _ ,then-loc)
-                                                 (uxn-call! (2) jcn)
-                                                 ,else
-                                                 (_push! _ ,end)
-                                                 (uxn-call! (2) jmp)
-                                                 (define-label! ,then-loc)
-                                                 ,then
-                                                 (define-label! ,end))))
+                                               (uxn-call! () ora) ; <- arg is a short - we OR it to get any truthy values into one byte
+                                               (_push! _ ,then-loc)
+                                               (uxn-call! (2) jcn)
+                                               ,else
+                                               (_push! _ ,end)
+                                               (uxn-call! (2) jmp)
+                                               (define-label! ,then-loc)
+                                               ,then
+                                               (define-label! ,end))))
                               (at code env* (f env)))
                          (loop rest at env* (append acc (list (tuple 'commentary `(if ,arg))) code))))
                       ((_with-label label body)
