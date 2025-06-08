@@ -39,9 +39,13 @@
   (λ args . body)
   (_λ args body))
 
+(define-macro-rule (())
+  (λ () . body)
+  (_λ () body))
+
 (define-macro-rule ()
   (lambda args . body)
-  (_λ args body))
+  (λ args . body))
 
 (define-macro-rule ()
   (deo!)
@@ -207,6 +211,20 @@
 (define-binop band and 2)
 (define-binop bior ora 2)
 (define-binop bxor eor 2)
+
+;; TODO: error: (couldn't match (and) to any rewrite rules)
+;; TODO: make it possible for macros to somehow yield multiple toplevel exps OR search for macro-rules deeper than just toplevel o_O
+;; (define-macro-rule ()
+;;   (or a b)
+;;   (bior a b))
+
+;; (define-macro-rule ()
+;;   (xor a b)
+;;   (bxor a b))
+
+;; (define-macro-rule ()
+;;   (and a b)
+;;   (band a b))
 
 (define-macro-rule ()
   (> a b)

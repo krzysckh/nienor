@@ -299,34 +299,51 @@
   #b00100100)
 
 (defvar *hello* "hello world" 0)
+(define text-width 88)
+(define screen-width 400)
+(define screen-height 300)
+(define vx 4)
+(define vy 4)
 
 ;; TODO: fix this syntax for small shorts
 (defvar x   0 10)
 (defvar y   0 10)
-(defvar vx  0 2)
-(defvar vy  0 2)
+(defvar mx  0 1) ; mode-{x,y}: %2 == 1 for +, 0 for -
+(defvar my  0 1)
+(defvar update! 0 0)
 
-(define (vputc chr x y color)
-  (sprite! x y (+ *atari8* (* 8 chr)) 0 0 0 0 color))
+(define (vputc chr x y color layer)
+  (sprite! x y (+ *atari8* (* 8 chr)) 0 layer 0 0 color))
 
-(define (vputs ptr x y color)
+(define (vputs ptr x y color layer)
   (let ((chr (get8! ptr)))
     (if (equ? chr 0)
         (noop)
         (begin
-          (vputc chr x y color)
-          (vputs (+ ptr 1) (+ x 8) y color)))))
+          (vputc chr x y color layer)
+          (vputs (+ ptr 1) (+ x 8) y color layer)))))
 
 (define-vector (draw)
-  (vputs *hello* (get! x) (get! y) #b00001010)
-  (print-number (+ (get! x) (get! vx)))
-  (set! x (+ (get! x) (get! vx)))
-  (set! y (+ (get! y) (get! vy)))
-  )
+  (let ((ax (- (get! x) (modulo (get! x) 8)))
+        (ay (- (get! y) (modulo (get! y) 8))))
+    (fill-rect! *texture* color-2 ax ay (+ ax (+ 1 text-width)) (+ ay 16) layer-1)) ; patch up old hello world
+  (when (bior (band (modulo (get! mx) 2) (> (+ (get! x) text-width) screen-width)) (> (get! x) screen-width))
+    (set! mx (+ (get! mx) 1)))
+  (when (bior (band (modulo (get! my) 2) (> (+ (get! y) 8) screen-height)) (> (get! y) screen-height))
+    (set! my (+ (get! my) 1)))
+
+  (if (modulo (get! mx) 2)
+      (set! x (+ (get! x) vx))
+      (set! x (- (get! x) vx)))
+  (if (modulo (get! my) 2)
+      (set! y (+ (get! y) vy))
+      (set! y (- (get! y) vy)))
+
+  (vputs *hello* (get! x) (get! y) #b00001010 layer-1))
 
 (define (main)
   (set-colors! #x05ff #x00ff #x0dff)
   (set-draw-handler! draw)
-  (set-screen-width! 400)
-  (set-screen-height! 300)
-  (fill-rect! *texture* color-2 0 0 400 300))
+  (set-screen-width! screen-width)
+  (set-screen-height! screen-height)
+  (fill-rect! *texture* color-2 0 0 400 300 layer-0))
