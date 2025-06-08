@@ -75,6 +75,40 @@
        (tuple 'commentary comment)
        tpl))
 
+    (define (uniq lst)
+      (let loop ((lst lst) (acc #n))
+        (cond
+         ((null? lst) acc)
+         ((has? acc (car lst)) (loop (cdr lst) acc))
+         (else
+          (loop (cdr lst) (cons (car lst) acc))))))
+
+    (define *symbols-used-internally* '(nigeb *rt-finish*))
+
+    (define (code->used-symbols exp)
+      (uniq
+       (append
+        *symbols-used-internally*
+        (filter
+         symbol?
+         (let walk ((exp exp) (acc #n))
+           (cond
+            ((null? exp) acc)
+            ((pair? (car exp)) (walk (car exp) (append acc (walk (cdr exp) #n))))
+            (else
+             (walk (cdr exp) (append (list (car exp)) acc)))))))))
+
+    (define (defun->used-symbols exp)
+      (code->used-symbols (cdddr exp)))
+
+    (define (which-local env local)
+      (let loop ((l (get env 'locals #n)) (n 0))
+        (cond
+         ((null? l) #f)
+         ((eq? local (car l)) n)
+         (else
+          (loop (cdr l) (+ n 1))))))
+
     (define (codegen at lst)
       (λ (env) ; env -> (values at code env')
         (let loop ((lst lst)
@@ -272,13 +306,74 @@
                                    (put env* 'labels (del (get env* 'labels empty) label)))
                                (append acc code))))
                       ((_λ args body)
-                       (let ((name (gensym))
-                             (resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc)))))
-                         (loop
-                          rest
-                          (+ at 4)
-                          (put env 'epilogue (append (get env 'epilogue #n) `((_defun ,name ,args ,body))))
-                          (append acc (with-comment `(λ ,name ,args) (tuple 'unresolved-symbol name resolve))))))
+                       (let ((used-locals (intersect (get env 'locals #n) (code->used-symbols body))))
+                         (if (null? used-locals)
+                             (let ((name (gensym)) ; a normal lambda
+                                   (resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc)))))
+                               (loop
+                                rest
+                                (+ at 4)
+                                (put env 'epilogue (append (get env 'epilogue #n) `((_defun ,name ,args ,body))))
+                                (append acc (with-comment `(λ ,name ,args) (tuple 'unresolved-symbol name resolve)))))
+                             (lets ((name (gensym)) ; FUCK! it's a closure
+                                    (func `((_defun ,name (,@used-locals ,@args) ,body)))
+                                    (resolve1 (λ (loc)                                                     ; loc = *rt-finish*
+                                                `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc) ; push *rt-finish*
+                                                  ,(short! (keep! LDA))                                    ; get! *rt-finish*
+                                                  ,(short! DUP)                                            ; rtf* ptr* ptr*
+                                                  ,(short! ROT)                                            ; ptr* ptr* rtf*
+                                                  ,(short! SWP)                                            ; ptr* (<- this is saved as a final ptr) rtf* ptr*
+                                                  ,@(fold
+                                                     append
+                                                     #n
+                                                     (map (λ (local)
+                                                            (let ((n (which-local env local)))
+                                                              `(,LIT ,(short! LIT)                                 ; push LIT2
+                                                                ,ROT ,ROT                                          ; ptr* LIT -- LIT ptr*
+                                                                ,(keep! STA)                                       ; save LIT to *rt-finish*
+                                                                ,ROT ,POP                                          ; drop LIT
+                                                                ,(short! INC)                                      ; ptr* ++
+                                                                ,LIT 0 ,LDZ ,LIT ,n ,SUB ,LIT 2 ,MUL ,(short! LDZ) ; load local onto stack
+                                                                ,(short! SWP)                                      ; ptr* local* -- local* ptr*
+                                                                ,(short! (keep! STA))                              ; save local to *rt-finish*
+                                                                ,(short! NIP)                                      ; local* ptr* -- ptr*
+                                                                ,(short! LIT) 0 2
+                                                                ,(short! ADD)                                      ; ptr* += 2
+                                                                ,(short! SWP)                                      ; *rt-finish* ptr* -- ptr* *rt-finish*
+                                                                ,(keep! (short! STA))                              ; update *rt-finish*
+                                                                ,(short! SWP)                                      ; ptr* *rt-finish* -- *rt-finish* ptr*
+                                                                )))
+                                                          (reverse used-locals)))
+                                                  ,LIT ,(short! LIT)
+                                                  ,ROT ,ROT
+                                                  ,(keep! STA)))) ; save LIT to *rt-finish*
+                                    (resolve2 (λ (loc)                                                     ; loc = the gensymmed lambda
+                                                `(,ROT ,POP                                                ; drop LIT
+                                                  ,(short! INC)                                            ; ptr* ++
+                                                  ,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc) ; push the lambda
+                                                  ,(short! SWP)
+                                                  ,(short! (keep! STA))                                    ; save lambda to *rt-finish*
+                                                  ,(short! NIP)                                            ; λ ptr* -- ptr*
+                                                  ,(short! LIT) 0 2
+                                                  ,(short! ADD)                                            ; ptr* += 2
+                                                  ,LIT ,(short! JMP)
+                                                  ,ROT ,ROT
+                                                  ,(keep! STA)
+                                                  ,ROT ,POP
+                                                  ,(short! INC)
+                                                  ,(short! SWP)                                            ; *rt-finish* ptr* -- ptr* *rt-finish*
+                                                  ,(short! STA)                                            ; update *rt-finish*
+                                                  ;; we're left with the old ptr to the generated "function"
+                                                  )))
+                                    (length (+ 35 (* (len used-locals) 28))))
+                               (loop
+                                rest
+                                (+ at length)
+                                (put env 'epilogue (append (get env 'epilogue #n) func))
+                                (append acc (list (tuple 'commentary `(λ CLOSURE ,name "[" ,used-locals "]" ,args))
+                                                  (tuple 'unresolved-symbol '*rt-finish* resolve1)
+                                                  (tuple 'unresolved-symbol name resolve2))))
+                             ))))
                       ((_tailcall! name args)
                        (lets ((f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) args))))
                               (at code env* (f env))
@@ -392,36 +487,6 @@
             #n
             lst))
 
-    (define (codegen-until-empty-epilogue at lst env)
-      (lets ((at code* env* ((codegen at lst) env))
-             (epilogue (get env* 'epilogue #n)))
-        (if (null? epilogue)
-            (values at code* env*)
-            (lets ((at code env (codegen-until-empty-epilogue at epilogue (put env* 'epilogue #n))))
-              (values
-               at
-               (append code* code)
-               env)))))
-
-    (define (uniq lst)
-      (let loop ((lst lst) (acc #n))
-        (cond
-         ((null? lst) acc)
-         ((has? acc (car lst)) (loop (cdr lst) acc))
-         (else
-          (loop (cdr lst) (cons (car lst) acc))))))
-
-    (define (defun->used-symbols exp)
-      (uniq
-       (filter
-        symbol?
-        (let walk ((exp (cdddr exp)) (acc #n))
-          (cond
-           ((null? exp) acc)
-           ((pair? (car exp)) (walk (car exp) (append acc (walk (cdr exp) #n))))
-           (else
-            (walk (cdr exp) (append (list (car exp)) acc))))))))
-
     (define (find-defun lst name)
       (let loop ((lst lst))
         (cond
@@ -435,7 +500,7 @@
 
     ;; This function looks from main and tries to find all functions that _are_ used
     (define (find-used lst)
-      (let ((main (find-defun lst 'main)))
+      (if-lets ((main (find-defun lst 'main)))
         (let loop ((seen '(main)) (syms (defun->used-symbols main)))
           (if (null? syms)
               seen
@@ -444,23 +509,26 @@
                       (append (cdr syms) (filter
                                           (λ (s) (not (has? seen s)))
                                           (defun->used-symbols fun))))
-                (loop (cons (car syms) seen) (cdr syms)))))))
+                (loop (cons (car syms) seen) (cdr syms)))))
+        #f))
 
     ;; this removes unused defuns, defun-vectors, _alloc!s and nalloc!s
-    (define (keep-only-used-defuns used lst verbose?)
-      (let loop ((lst lst) (acc #n))
-        (cond
-         ((null? lst) acc)
-         ((and (or (eq? (car* (car lst)) '_defun)
-                   (eq? (car* (car lst)) '_defun-vector)
-                   (eq? (car* (car lst)) '_alloc!)
-                   (eq? (car* (car lst)) 'nalloc!))
-               (not (has? used (cadr (car lst)))))
-          (when verbose?
-            (print "  Deleted " (cadr (car lst))))
-          (loop (cdr lst) acc))
-         (else
-          (loop (cdr lst) (append acc (list (car lst))))))))
+    (define (keep-only-used-defuns lst verbose?)
+      (if-lets ((used (find-used lst)))
+        (let loop ((lst lst) (acc #n))
+          (cond
+           ((null? lst) acc)
+           ((and (or (eq? (car* (car lst)) '_defun)
+                     (eq? (car* (car lst)) '_defun-vector)
+                     (eq? (car* (car lst)) '_alloc!)
+                     (eq? (car* (car lst)) 'nalloc!))
+                 (not (has? used (cadr (car lst)))))
+            (when verbose?
+              (print "  Deleted " (cadr (car lst))))
+            (loop (cdr lst) acc))
+           (else
+            (loop (cdr lst) (append acc (list (car lst)))))))
+        lst)) ; failed to find main, don't apply anything (it's probably an epilogue pass)
 
     (define (but-last lst)
       (cond
@@ -502,20 +570,31 @@
            (else
             (loop (cdr lst) (append acc (list exp))))))))
 
+    (define (optimize lst verbose?)
+      (lets ((lst (keep-only-used-defuns lst verbose?)) ; delete unused defuns that would eat up space
+             (lst (find-tailcalls lst)))                ; add TCO marks
+        lst))
+
     ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
     (define (compile lst opt? with-debug? only-expand-macros verbose?)
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
 
-      (lets ((env (put empty-env 'opt? opt?))
-             (env lst (expand-macros lst env))
-             (lst (if opt? (keep-only-used-defuns (find-used lst) lst verbose?) lst)) ; delete unneeded function definitions
-             (lst (find-tailcalls lst))
-             (_ code* env* (codegen-until-empty-epilogue #x100 lst env))) ; <- gensym is only needed here
-        (kill-gensym!)                                                    ; so we can kill it afterwards
-        (if only-expand-macros
-            (only-expand-macros lst)
-            (values env* (resolve env* code* with-debug?)))))
+      (let loop ((lst lst) (at #x100) (code #n) (env (put empty-env 'opt? opt?)) (full-lst #n))
+        (lets ((env lst (expand-macros lst env))
+               (lst (if opt? (optimize lst verbose?) lst))
+               (at code* env ((codegen at lst) env))
+               (epilogue (get env 'epilogue #n))
+               (env (put env 'epilogue #n)))
+          (if (null? epilogue)
+              (begin
+                (kill-gensym!)
+                (if only-expand-macros
+                    (only-expand-macros full-lst)
+                    (values env (resolve
+                                 (put env 'labels (put (get env 'labels empty) '*compiler-end* at))
+                                 (append code code*) with-debug?))))
+              (loop epilogue at (append code code*) env (append full-lst lst))))))
 
     (define *prelude*
       (file->sexps "nienor/prelude.scm"))

@@ -159,7 +159,10 @@
 (main)
 (brk!)
 
+(defvar *rt-finish* *compiler-end*)
+
 ;;---
+
 
 ;; I define begin with no special syntax treatment
 ;; it's a hack as follows, i declare a `nigeb' label, which is begin backwards
@@ -488,6 +491,18 @@
         (begin
           (vputc chr x y color layer)
           (vputs (+ ptr 1) (+ x 8) y color layer)))))
+
+(define-macro-rule ()
+  (_after-rt! byte)
+  (begin
+    (set8! (get! *rt-finish*) byte)
+    (set! *rt-finish* (+ *rt-finish* 1))))
+
+(define-macro-rule ()
+  (_after-rt!* short)
+  (begin
+    (set! (get! *rt-finish*) short)
+    (set! *rt-finish* (+ *rt-finish* 2))))
 
 (alloc! *atari8*
   #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08
