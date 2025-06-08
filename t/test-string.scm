@@ -1,4 +1,4 @@
-(alloc! hello "Hello, World!\n" 0)
+(defvar hello "Hello, World!\n" 0)
 
 (define (main)
   (let ((puts puts-static))
