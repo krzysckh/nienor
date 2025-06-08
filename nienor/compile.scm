@@ -97,31 +97,44 @@
                              (+ at n-bytes)
                              (add-label env name at)
                              (append acc (with-comment `("nalloc!" ,name ,n-bytes) (tuple 'bytes (make-list n-bytes 0))))))
-                      ((_alloc! name bytes)
-                       (let ((bytes (fold
-                                     (λ (a b)
-                                       (append
-                                        a
-                                        (cond
-                                         ((string? b) (string->bytes b))
-                                         ((symbol? b) (error "_alloc! with labels is not implemented"))
-                                         ((number? b)
-                                          (if (> b 255)
-                                              (let ((l (list (>> (band #xff00 b) 8) (band #xff b))))
-                                                (warn
-                                                 "_alloc:" b
-                                                 "is > 255, allocating it as 2 bytes. consider doing this explicitly with these values: "
-                                                 l "to silence this warning")
-                                                l)
-                                              (list b)))
-                                         (else
-                                          (error "i don't know what type" b "is")))))
-                                     #n
-                                     bytes)))
+                      ((_alloc! name exps)
+                       (let* ((tuples
+                              (map
+                               (λ (exp)
+                                 (cond
+                                  ((string? exp)
+                                   (tuple 'bytes (string->bytes exp)))
+                                  ((symbol? exp)
+                                   (tuple 'unresolved-symbol exp (λ (loc) (list (>> (band #xff00 loc) 8) (band #xff loc)))))
+                                  ((number? exp)
+                                   (if (> exp 255)
+                                       (let ((l (list (>> (band #xff00 exp) 8) (band #xff exp))))
+                                         (warn
+                                          "_alloc:" exp
+                                          "is > 255, allocating it as 2 bytes. consider doing this explicitly with these values: "
+                                          l "to silence this warning")
+                                         (tuple 'bytes l))
+                                       (tuple 'bytes (list exp))))
+                                  (else
+                                   (error "i don't know what type" exp "is"))))
+                               exps))
+                              (len (fold
+                                    (λ (a b)
+                                      (tuple-case b
+                                        ((bytes l)
+                                         (+ a (len l)))
+                                        ((unresolved-symbol _1 _2)
+                                         (+ a 2))
+                                        (else
+                                         (error "BUG" b))))
+                                    0 tuples)))
                          (loop rest
-                               (+ at (len bytes))
+                               (+ at len)
                                (add-label env name at)
-                               (append acc (with-comment `("space allocated for" ,name "(" ,(len bytes) "bytes )") (tuple 'bytes bytes))))))
+                               (append
+                                acc
+                                (list (tuple 'commentary `("space allocated for" ,name "(" ,len "bytes )")))
+                                tuples))))
                       ((codegen-at! ptr)
                        (loop rest ptr env (append acc (list (tuple 'codegen-at ptr)))))
                       ((_push! mode value)

@@ -235,6 +235,14 @@
   (begin a b (uxn-call! (2) lth) (pus! 0) (uxn-call! () swp)))
 
 (define-macro-rule ()
+  (>= a b)
+  (bior (> a b) (equ? a b)))
+
+(define-macro-rule ()
+  (<= a b)
+  (bior (< a b) (equ? a b)))
+
+(define-macro-rule ()
   (bior* a b . c)
   (bior a (bior* b . c)))
 
@@ -395,6 +403,23 @@
     v (allocate-local! k)
     (begin . body)
     (free-locals! 1)))
+
+;; (define-macro-rule (_)
+;;   (_let-loop name (_ . keys) (_ . vals) (_ (key value) . rest) . body)
+;;   (_let-loop name (_ key . keys) (_ value . vals) (_ . rest) . body))
+
+;; (define-macro-rule (_)
+;;   (_let-loop name (_ . keys) (_ . vals) (_) . body)
+;;   (let ((name (with-label _wtf
+;;                 (let ((f (λ (_reverse . keys) (jmp! _wtf))))
+;;                   (begin . body)
+;;                   (uxn-call! (2 r) jmp)
+;;                   f))))
+;;     (name . (_reverse . vals))))
+
+;; (define-macro-rule (_)
+;;   (let loop ((key val) . rest) . body)
+;;   (_let-loop loop (_ key) (_ val) (_ . rest) . body))
 
 (define-macro-rule ()
   (let ((key val) . rest) . body)
