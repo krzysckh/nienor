@@ -406,14 +406,17 @@
                       (append (cdr syms) (filter
                                           (λ (s) (not (has? seen s)))
                                           (defun->used-symbols fun))))
-                (loop seen (cdr syms)))))))
+                (loop (cons (car syms) seen) (cdr syms)))))))
 
+    ;; this removes unused defuns, defun-vectors, _alloc!s and nalloc!s
     (define (keep-only-used-defuns used lst verbose?)
       (let loop ((lst lst) (acc #n))
         (cond
          ((null? lst) acc)
          ((and (or (eq? (car* (car lst)) '_defun)
-                   (eq? (car* (car lst)) '_defun-vector))
+                   (eq? (car* (car lst)) '_defun-vector)
+                   (eq? (car* (car lst)) '_alloc!)
+                   (eq? (car* (car lst)) 'nalloc!))
                (not (has? used (cadr (car lst)))))
           (when verbose?
             (print "  Deleted " (cadr (car lst))))
