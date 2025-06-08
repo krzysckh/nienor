@@ -1,0 +1,11 @@
+(define (count n dummy)
+  (print-number n)
+  (if (equ? n 1000)
+      (noop)
+      (if (equ? dummy n)
+          (count (+ n 2) dummy)
+          (count (+ n 1) dummy))))
+
+(define (main)
+  (count 0 42)
+  (exit 128))

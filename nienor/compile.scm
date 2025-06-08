@@ -47,11 +47,15 @@
                                  (if keep?   #b10000000 0))))
             (error "unknown opcode: " opc))))
 
+    (define (name->skip-prologue-name name)
+      (string->symbol (str name "__skip-prologue")))
+
     (define (make-defun codegen cont env acc rest at name args body mode)
       (lets ((f (codegen
                    at
                    `((define-label! ,name)
                      ,@(map (λ (s) `(allocate-local! ,s)) args) ; bump local counter in zero page, arg to zero-page
+                     (define-label! ,(name->skip-prologue-name name)) ; TODO: only generate this in functions with tailcalls
                      ,@body
                      (free-locals! ,(len args))
                      ,@(if (eq? mode 'vector)
@@ -275,6 +279,27 @@
                           (+ at 4)
                           (put env 'epilogue (append (get env 'epilogue #n) `((_defun ,name ,args ,body))))
                           (append acc (with-comment `(λ ,name ,args) (tuple 'unresolved-symbol name resolve))))))
+                      ((_tailcall! name args)
+                       (lets ((f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) args))))
+                              (at code env* (f env))
+                              (resolve (λ (loc) `(,LIT 0 ,LDZ ,LIT 2 ,MUL ; load ptr and *2 it because every local is a short
+                                                  ,@(fold
+                                                     append #n
+                                                     (map (λ (_)
+                                                            `(,(keep! (short! STZ)) ; store arg in zero-page @ ptr
+                                                              ,NIP ,NIP             ; remove arg, keep ptr
+                                                              ,LIT 2 ,SUB           ; ptr -= 2, jump to another arg
+                                                              ))
+                                                          args))
+                                                  ,POP ; pop ptr
+                                                  ,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ; push function
+                                                  ,(short! JMP) ; jump without a real funcall
+                                                  )))
+                              (length (+ 12 (* (len args) 6))))
+                         (loop rest (+ at length) env*
+                               (append acc code (with-comment
+                                                 `(tailcall! ,name)
+                                                 (tuple 'unresolved-symbol (name->skip-prologue-name name) resolve))))))
                       (else ; funcall
                        (lets ((func (car* exp))
                               (args (cdr* exp))
@@ -437,6 +462,46 @@
          (else
           (loop (cdr lst) (append acc (list (car lst))))))))
 
+    (define (but-last lst)
+      (cond
+       ((null? lst) #n)
+       ((null? (cdr* lst)) #n)
+       (else
+        (cons (car* lst) (but-last (cdr* lst))))))
+
+    (define (maybe-tailcall defun)
+      (let ((name (cadr defun))
+            (code (cadddr defun)))
+        `(_defun
+          ,name ,(caddr defun)
+          ,(append
+            (but-last code)
+            (list
+             (let loop ((e (last code #f)))
+               ;; (print e)
+               (cond
+                ((eq? (car* e) 'nigeb)
+                 (if (null? (cdr* e))
+                     '(nigeb)
+                     `(nigeb ,(loop (car* (cdr* e))) ,@(cdr* (cdr* e)))))
+                ((eq? (car* e) 'if)
+                 `(if ,(cadr e) ,(loop (caddr e)) ,(loop (cadddr e))))
+                (else
+                 (if (eq? (car* e) name)
+                     `(_tailcall! ,name ,(cdr e))
+                     e)))))))))
+
+    (define (find-tailcalls lst)
+      (let loop ((lst lst) (acc #n))
+        (let ((exp (car* lst)))
+          (cond
+           ((null? lst) acc)
+           ((eq? (car* exp) '_defun)
+            (let ((mt (maybe-tailcall exp)))
+              (loop (cdr lst) (append acc (list mt)))))
+           (else
+            (loop (cdr lst) (append acc (list exp))))))))
+
     ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
     (define (compile lst opt? with-debug? only-expand-macros verbose?)
@@ -445,6 +510,7 @@
       (lets ((env (put empty-env 'opt? opt?))
              (env lst (expand-macros lst env))
              (lst (if opt? (keep-only-used-defuns (find-used lst) lst verbose?) lst)) ; delete unneeded function definitions
+             (lst (find-tailcalls lst))
              (_ code* env* (codegen-until-empty-epilogue #x100 lst env))) ; <- gensym is only needed here
         (kill-gensym!)                                                    ; so we can kill it afterwards
         (if only-expand-macros
