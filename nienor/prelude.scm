@@ -114,11 +114,16 @@
 
 (define-macro-rule ()
   (define-binop name uxn-op . modes)
-  (define-macro-rule ()
-    (name _arg1 _arg2)
-    (begin
-      _arg1 _arg2
-      (uxn-call! modes uxn-op))))
+  (flatten!
+   (define-macro-rule ()
+     (name _arg1 . argn)
+     (name _arg1 (name . argn)))
+
+   (define-macro-rule ()
+     (name _arg1 _arg2)
+     (begin
+       _arg1 _arg2
+       (uxn-call! modes uxn-op)))))
 
 (define-macro-rule ()
   (with-label label . body)
@@ -273,6 +278,14 @@
   (uxn-call! (2) sft))
 
 (define-simple-deo exit #x0f)
+
+(define-macro-rule ()
+  (flatten! . body)
+  (_flatten! body))
+
+(define-macro-rule ()
+  (exit!)
+  (exit 128))
 
 ;; short equal
 (define (equ? a b)

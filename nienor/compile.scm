@@ -182,15 +182,15 @@
                                     ((number? value)
                                      (if byte?
                                          (values env (+ at 2) (list (tuple 'bytes `(,LIT ,(band #xff value)))))
-                                         (values env (+ at 4) (list (tuple 'bytes `(,LIT ,(>> (band #xff00 value) 8) ,LIT ,(band #xff value)))))))
+                                         (values env (+ at 3) (list (tuple 'bytes `(,(short! LIT) ,(>> (band #xff00 value) 8) ,(band #xff value)))))))
                                     ((eq? value #t)
                                      (if byte?
                                          (values env (+ at 2) (list (tuple 'bytes `(,LIT 1))))
-                                         (values env (+ at 4) (list (tuple 'bytes `(,LIT 0 ,LIT 1))))))
+                                         (values env (+ at 3) (list (tuple 'bytes `(,(short! LIT) 0 1))))))
                                     ((eq? value #f)
                                      (if byte?
                                          (values env (+ at 2) (list (tuple 'bytes `(,LIT 0))))
-                                         (values env (+ at 4) (list (tuple 'bytes `(,LIT 0 ,LIT 0))))))
+                                         (values env (+ at 3) (list (tuple 'bytes `(,(short! LIT) 0 0))))))
                                     ((symbol? value)
                                      (let loop ((l (get env 'locals #n)) (n 0))
                                        (cond
@@ -199,11 +199,11 @@
                                          (let ((resolve (λ (loc)
                                                           (if byte?
                                                               `(,LIT ,(band #xff loc))
-                                                              `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc))))))
+                                                              `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc))))))
                                            ;; TODO: remove magic length, dry with funcall!
                                            (values
                                             env
-                                            (+ at (if byte? 2 4))
+                                            (+ at (if byte? 2 3))
                                             (if-lets ((loc (get (get env 'labels empty) value #f)))
                                               (list (tuple 'bytes (resolve loc))) ; great! we have loc rn, we can resolve
                                               (list (tuple 'unresolved-symbol value resolve)))))) ; we do it later
@@ -219,8 +219,8 @@
                                             (at code env (f env)))
                                        (values env at code)))
                                     ((string? value)
-                                     (let ((raw (fold append #n (map (λ (x) `(,LIT 0 ,LIT ,x)) (reverse (string->bytes value))))))
-                                       (values env (len raw) (list (tuple 'bytes raw)))))
+                                     (let ((raw (fold append #n (map (λ (x) `(,(short! LIT) 0 ,x)) (reverse (string->bytes value))))))
+                                       (values env (+ at (len raw)) (list (tuple 'bytes raw)))))
                                     (else
                                      (error "unsupported type for _push!: " value)))))
                          (loop rest at env (append acc
@@ -232,14 +232,16 @@
                            (let ((code `(,LIT 0 ,LDZ  ; load local ptr from 0x0
                                          ,LIT ,n ,SUB ; subtract the amount of freed locals
                                          ,LIT 0 ,STZ  ; save new local ptr to 0x0
-                                         )))
+                                         ))
+                                 (env
+                                   (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
+                                                        (if (= n 0)
+                                                            lst
+                                                            (loop (cdr lst) (- n 1)))))))
                              (loop rest
                                    (+ at (len code))
-                                   (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
-                                                      (if (= n 0)
-                                                          lst
-                                                          (loop rest (- n 1)))))
-                                   (append acc (with-comment `(free-locals! ,n) (tuple 'bytes code)))))))
+                                   env
+                                   (append acc (with-comment `(free-locals! ,n ";; locals =" ,(get env 'locals #n)) (tuple 'bytes code)))))))
                       ((allocate-local! name)
                        (let ((code `(,LIT 0 ,LDZ      ; load ptr
                                      ,INC             ; inc ptr
@@ -247,12 +249,14 @@
                                      ,(short! STZ)    ; store arg at ptr
                                      ,LIT 0 ,LDZ ,INC ; load & inc ptr again
                                      ,LIT 0 ,STZ      ; store new ptr at 0x0
-                                     )))
+                                     ))
+                             (env (put env 'locals (cons name (get env 'locals #n)))))
                          (loop
                           rest
                           (+ at (len code))
-                          (put env 'locals (cons name (get env 'locals #n)))
-                          (append acc (with-comment `(allocate-local! ,name) (tuple 'bytes code))))))
+                          env
+                          (append acc (with-comment `(allocate-local! ,name ";; locals =" ,(get env 'locals #n))
+                                                    (tuple 'bytes code))))))
                       ((_defun name args body)
                        (make-defun codegen loop env acc rest at name args body 'normal)) ; continues loop
                       ((_defun-vector name args body)
@@ -309,10 +313,10 @@
                        (let ((used-locals (intersect (get env 'locals #n) (code->used-symbols body))))
                          (if (null? used-locals)
                              (let ((name (gensym)) ; a normal lambda
-                                   (resolve (λ (loc) `(,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc)))))
+                                   (resolve (λ (loc) `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc)))))
                                (loop
                                 rest
-                                (+ at 4)
+                                (+ at 3)
                                 (put env 'epilogue (append (get env 'epilogue #n) `((_defun ,name ,args ,body))))
                                 (append acc (with-comment `(λ ,name ,args) (tuple 'unresolved-symbol name resolve)))))
                              (lets ((name (gensym)) ; FUCK! it's a closure
@@ -387,15 +391,15 @@
                                                               ))
                                                           args))
                                                   ,POP ; pop ptr
-                                                  ,LIT ,(>> (band #xff00 loc) 8) ,LIT ,(band #xff loc) ; push function
+                                                  ,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc) ; push function
                                                   ,(short! JMP) ; jump without a real funcall
                                                   )))
-                              (length (+ 12 (* (len args) 6))))
+                              (length (+ 11 (* (len args) 6))))
                          (loop rest (+ at length) env*
                                (append acc code (with-comment
                                                  `(tailcall! ,name)
                                                  (tuple 'unresolved-symbol (name->skip-prologue-name name) resolve))))))
-                      (else ; funcall
+                      (else ; funcall OR ignored
                        (lets ((func (car* exp))
                               (args (cdr* exp))
                               (f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) (reverse args)) (funcall! ,func))))
@@ -434,6 +438,7 @@
         (let walk ((exp exp))
           (cond
            ((null? exp) #n)
+           ((atom? exp) exp)
            ((get macros (car* exp) #f)
             (walk ((get macros (car* exp) #f) exp)))
            ((pair? (car exp)) (cons
@@ -450,11 +455,14 @@
             (tuple-case (list->tuple (car* exp))
               ((define-macro-rule literal rule rewrite)
                (loop (cdr exp) (add-macro env rule rewrite literal) acc (+ substitutions 1)))
+              ((_flatten! code)
+               (loop (append code (cdr exp)) env acc (+ substitutions 1)))
               (else
                (loop (cdr exp) env (append acc (list (car exp))) substitutions))))))
 
     (define (expand-macros lst env)
       (lets ((substitutions env* lst (lookup-toplevel-macros env lst)))
+        (print "substitutions: " substitutions)
         (if (= substitutions 0)
             (values
              env*
@@ -546,7 +554,6 @@
             (but-last code)
             (list
              (let loop ((e (last code #f)))
-               ;; (print e)
                (cond
                 ((eq? (car* e) 'nigeb)
                  (if (null? (cdr* e))

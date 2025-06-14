@@ -1,1 +1,1 @@
-(define (main))
+(define (main) (exit!))

@@ -8,6 +8,7 @@ a simple macro system for nienor. nothing fancy, just enough to get the lisp goi
    (nienor common))
 
   (export
+   atom?
    macro-matches?
    rewrite-macro)
 
@@ -30,7 +31,7 @@ a simple macro system for nienor. nothing fancy, just enough to get the lisp goi
           #f))
        ((and (atom? (car* macro)) (not (null? (car* exp))))
         (if-lets ((a (macro-matches? (cdr* macro) (cdr* exp) literal)))
-          (append `((,(car* macro) . ,(car* exp))) a)
+          (cons `(,(car* macro) . ,(car* exp)) a)
           #f))
        (else
         #f)))
@@ -41,13 +42,13 @@ a simple macro system for nienor. nothing fancy, just enough to get the lisp goi
           (cond
            ((null? exp) #n)
            ((pair? (car* exp))
-            (append
-             (list (walk (car exp)))
+            (cons
+             (walk (car exp))
              (walk (cdr exp))))
            ((not (pair? exp)) ; ilist = (a b . c)
             (if-lets ((val (cdr* (assoc exp rewrite))))
               val
-              (error "invalid dot" exp "in macro" macro)))
+              exp))
            (else
             (if-lets ((val (cdr* (assoc (car exp) rewrite))))
               (cons val (walk (cdr exp)))
@@ -61,8 +62,7 @@ a simple macro system for nienor. nothing fancy, just enough to get the lisp goi
               (car lst))))
 
     (define tests-1
-      '(
-        ((f a b c)        (func 1 2 3) () #t)
+      '(((f a b c)        (func 1 2 3) () #t)
         ((f (a b) c)      (func (1 2) 3) () #t)
         ((f (((a) b) c))  (func (((1) 2) 3)) () #t)
         ((f a b . c)      (func 1 2 3) () #t)
