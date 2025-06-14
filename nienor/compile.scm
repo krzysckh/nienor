@@ -544,6 +544,9 @@
        (else
         (cons (car* lst) (but-last (cdr* lst))))))
 
+    ;; TODO: fix tailcalls with more locals (e.g. in let expressions)
+    (define tailcall-ignore '(free-locals! allocate-local!)
+
     (define (maybe-tailcall defun)
       (let ((name (cadr defun))
             (code (cadddr defun)))
@@ -586,12 +589,13 @@
     (define (compile lst opt? with-debug? only-expand-macros verbose?)
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
 
-      (let loop ((lst lst) (at #x100) (code #n) (env (put empty-env 'opt? opt?)) (full-lst #n))
+      (let loop ((lst lst) (at #x100) (code #n) (env (put empty-env 'opt? opt?)) (full-lst lst))
         (lets ((env lst (expand-macros lst env))
                (lst (if opt? (optimize lst verbose?) lst))
                (at code* env ((codegen at lst) env))
                (epilogue (get env 'epilogue #n))
-               (env (put env 'epilogue #n)))
+               (env (put env 'epilogue #n))
+               (full-lst (append full-lst lst)))
           (if (null? epilogue)
               (begin
                 (kill-gensym!)
@@ -600,7 +604,7 @@
                     (values env (resolve
                                  (put env 'labels (put (get env 'labels empty) '*compiler-end* at))
                                  (append code code*) with-debug?))))
-              (loop epilogue at (append code code*) env (append full-lst lst))))))
+              (loop epilogue at (append code code*) env full-lst)))))
 
     (define *prelude*
       (file->sexps "nienor/prelude.scm"))
