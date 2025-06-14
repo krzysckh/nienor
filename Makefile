@@ -15,4 +15,4 @@ install: bin/nienor
 uninstall:
 	rm -v $(PREFIX)/bin/nienor
 test: all
-	( cd t && ./run-tests.sh )
+	$(OL) run-tests.scm
