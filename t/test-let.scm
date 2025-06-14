@@ -1,3 +1,6 @@
+(_declare-test
+ output => "a\nabc42\n42\n10\n")
+
 (define (test e f)
   (let ((a 10)
         (b 30)

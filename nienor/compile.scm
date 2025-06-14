@@ -462,7 +462,6 @@
 
     (define (expand-macros lst env)
       (lets ((substitutions env* lst (lookup-toplevel-macros env lst)))
-        (print "substitutions: " substitutions)
         (if (= substitutions 0)
             (values
              env*

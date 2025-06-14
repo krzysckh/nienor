@@ -1,3 +1,6 @@
+(_declare-test
+ output => "hello\n")
+
 (define (returns-2)
   2)
 

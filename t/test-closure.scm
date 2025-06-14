@@ -1,3 +1,6 @@
+(_declare-test
+ output => "abcd\n6\n42\n2137\n420\n42\n")
+
 (define (make i)
   (λ (x)
     (+ i x)))

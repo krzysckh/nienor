@@ -16,6 +16,7 @@
      (np     "-N" "--no-prelude"     comment "don't attach prelude")
      (dump   "-D" "--dump"           comment "compile & disassemble to uxntal - always attaches prelude and optimizes")
      (V      "-V" "--verbose"        comment "be verbose")
+     (q      "-q" "--quiet"          comment "be quiet")
      )))
 
 (λ (args)
@@ -52,11 +53,12 @@
           (else
            (lets ((env data (n/compile-file (car extra) opt? att v))
                   (n-labels (ff-fold (λ (a k v) (+ a 1)) 0 (get env 'labels empty))))
-             (format stdout "Assembled ~a in ~aB (~,2f% used), ~a labels~%"
-                     out
-                     (format-number-base2 (len data))
-                     (* 100 (/ (len data) (<< 1 16)))
-                     n-labels)
+             (unless (get opt 'q #f)
+               (format stdout "Assembled ~a in ~aB (~,2f% used), ~a labels~%"
+                       out
+                       (format-number-base2 (len data))
+                       (* 100 (/ (len data) (<< 1 16)))
+                       n-labels))
              (list->file data out))))
          0)
         ((> (length extra) 1) (error "Too many files."))

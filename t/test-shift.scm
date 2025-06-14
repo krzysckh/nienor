@@ -1,3 +1,6 @@
+(_declare-test
+ output => "ok\nok\nok\nok\n")
+
 (defvar *ok* "ok\n" 0)
 (defvar *bad* "bad\n" 0)
 

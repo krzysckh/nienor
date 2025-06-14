@@ -1,3 +1,6 @@
+(_declare-test
+ output => "2137\n21\n42\n")
+
 ;; TODO: since defvar is a wrapper for _alloc!,
 ;; consider doing something to be able to make it more...
 ;; DWIM, so (defvar _ 42) => (defvar _ 0 42)

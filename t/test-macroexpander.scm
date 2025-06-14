@@ -1,5 +1,8 @@
 ;; -*- Owl -*-
 
+(_declare-test
+ output => "")
+
 (define-macro-rule ()
   (bior* a b . c)
   (bior a (bior* b . c)))

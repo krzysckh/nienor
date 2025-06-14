@@ -662,3 +662,7 @@
   #x00 #x00 #x00 #x00 #x60 #x60 #x00 #x00 #x00 #x00 #x0f #x18 #xd8 #x70 #x30 #x00
   #x38 #x6c #x6c #x6c #x6c #x00 #x00 #x00 #x38 #x6c #x18 #x30 #x7c #x00 #x00 #x00
   #x78 #x0c #x38 #x0c #x78 #x00 #x00 #x00 #x00 #xfe #x00 #x00 #x00 #x00 #x00 #x00)
+
+(define-macro-rule ()
+  (_declare-test . blah)
+  (_flatten! ()))

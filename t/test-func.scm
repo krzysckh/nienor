@@ -1,3 +1,6 @@
+(_declare-test
+ output => "ok\n")
+
 (define (app f)
   (f #\n #\k))
 
