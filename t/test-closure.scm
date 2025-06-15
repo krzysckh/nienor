@@ -8,7 +8,7 @@
 (define (make-add3 a)
   (λ (b)
     (λ (c)
-      (+ a (+ b c)))))
+      (+ a b c))))
 
 (define (check-args a b)
   (λ (c d)

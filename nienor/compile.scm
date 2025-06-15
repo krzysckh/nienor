@@ -54,10 +54,9 @@
       (lets ((f (codegen
                    at
                    `((define-label! ,name)
-                     ,@(map (λ (s) `(allocate-local! ,s)) args) ; bump local counter in zero page, arg to zero-page
-                     (define-label! ,(name->skip-prologue-name name)) ; TODO: only generate this in functions with tailcalls
-                     ,@body
-                     (free-locals! ,(len args))
+                     (_with-locals!
+                      ,(reverse args)
+                      ((define-label! ,(name->skip-prologue-name name)) ,@body))
                      ,@(if (eq? mode 'vector)
                            '((uxn-call! () brk)) ; a list because i had something something in mind
                            '((uxn-call! (2 r) jmp)))
@@ -83,7 +82,7 @@
          (else
           (loop (cdr lst) (cons (car lst) acc))))))
 
-    (define *symbols-used-internally* '(nigeb main malloc/init *rt-finish*))
+    (define *symbols-used-internally* '(nigeb main malloc/init *rt-finish* malloc))
 
     (define (code->used-symbols exp)
       (uniq
@@ -226,37 +225,41 @@
                          (loop rest at env (append acc
                                                    (if (list? value) '() (list (tuple 'commentary `(_push! ,value)))) ; don't comment resolving lists
                                                    code))))
-                      ((free-locals! n)
-                       (if (eq? n 0)
-                           (loop rest at env (append acc (list (tuple 'commentary '(removed free-locals! 0))))) ; this is a peephole optimization
-                           (let ((code `(,LIT 0 ,LDZ  ; load local ptr from 0x0
-                                         ,LIT ,n ,SUB ; subtract the amount of freed locals
-                                         ,LIT 0 ,STZ  ; save new local ptr to 0x0
-                                         ))
-                                 (env
-                                   (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
-                                                        (if (= n 0)
-                                                            lst
-                                                            (loop (cdr lst) (- n 1)))))))
-                             (loop rest
-                                   (+ at (len code))
-                                   env
-                                   (append acc (with-comment `(free-locals! ,n ";; locals =" ,(get env 'locals #n)) (tuple 'bytes code)))))))
-                      ((allocate-local! name)
-                       (let ((code `(,LIT 0 ,LDZ      ; load ptr
-                                     ,INC             ; inc ptr
-                                     ,LIT 2 ,MUL      ; *2 because all locals are shorts
-                                     ,(short! STZ)    ; store arg at ptr
-                                     ,LIT 0 ,LDZ ,INC ; load & inc ptr again
-                                     ,LIT 0 ,STZ      ; store new ptr at 0x0
-                                     ))
-                             (env (put env 'locals (cons name (get env 'locals #n)))))
-                         (loop
-                          rest
-                          (+ at (len code))
-                          env
-                          (append acc (with-comment `(allocate-local! ,name ";; locals =" ,(get env 'locals #n))
-                                                    (tuple 'bytes code))))))
+                      ((_with-locals! names body)
+                       (lets ((code `(,LIT 0 ,LDZ      ; load ptr
+                                      ,INC             ; inc ptr
+                                      ,LIT 2 ,MUL      ; *2 because all locals are shorts
+                                      ,(short! STZ)    ; store arg at ptr
+                                      ,LIT 0 ,LDZ ,INC ; load & inc ptr again
+                                      ,LIT 0 ,STZ      ; store new ptr at 0x0
+                                      ))
+                              (n (len names))
+                              (code* (fold append #n (make-list n code)))
+                              (env (put env 'locals (append names (get env 'locals #n))))
+                              (free (if (= n 0)
+                                        (tuple 'commentary '(removed freeing of 0 locals))
+                                        (tuple 'bytes
+                                               `(,LIT 0 ,LDZ  ; load local ptr from 0x0
+                                                 ,LIT ,n ,SUB ; subtract the amount of freed locals
+                                                 ,LIT 0 ,STZ  ; save new local ptr to 0x0
+                                                 ))))
+                              (f (codegen (+ at (len code*)) body))
+                              (at code env (f env))
+                              (env*
+                               (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
+                                                  (if (= n 0)
+                                                      lst
+                                                      (loop (cdr lst) (- n 1)))))))
+                         (loop rest
+                               (+ at (if (= n 0) 0 (len (ref free 2))))
+                               env*
+                               (append
+                                acc
+                                (list (tuple 'commentary `(_with-locals! ,names ";; locals =" ,(get env 'locals #n))))
+                                (list (tuple 'bytes code*))
+                                code
+                                (list (tuple 'commentary `(freeing ,n locals ";; locals =" ,(get env* 'locals #n))))
+                                (list free)))))
                       ((_defun name args body)
                        (make-defun codegen loop env acc rest at name args body 'normal)) ; continues loop
                       ((_defun-vector name args body)
@@ -321,12 +324,12 @@
                                 (append acc (with-comment `(λ ,name ,args) (tuple 'unresolved-symbol name resolve)))))
                              (lets ((name (gensym)) ; FUCK! it's a closure
                                     (func `((_defun ,name (,@used-locals ,@args) ,body)))
-                                    (resolve1 (λ (loc)                                                     ; loc = *rt-finish*
-                                                `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc) ; push *rt-finish*
-                                                  ,(short! (keep! LDA))                                    ; get! *rt-finish*
-                                                  ,(short! DUP)                                            ; rtf* ptr* ptr*
-                                                  ,(short! ROT)                                            ; ptr* ptr* rtf*
-                                                  ,(short! SWP)                                            ; ptr* (<- this is saved as a final ptr) rtf* ptr*
+                                    (clos-size (+ (* (len used-locals) 3) 4))
+                                    (resolve1 (λ (loc)                                                     ; loc = malloc
+                                                `(,(short! LIT) ,(>> (band #xff00 clos-size) 8) ,(band #xff clos-size) ; push closure size
+                                                  ,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc) ; push malloc
+                                                  ,(short! JSR)                                            ; malloc(n)
+                                                  ,(short! DUP)                                            ; ptr* ptr*
                                                   ,@(fold
                                                      append
                                                      #n
@@ -341,11 +344,8 @@
                                                                 ,(short! SWP)                                      ; ptr* local* -- local* ptr*
                                                                 ,(short! (keep! STA))                              ; save local to *rt-finish*
                                                                 ,(short! NIP)                                      ; local* ptr* -- ptr*
-                                                                ,(short! LIT) 0 2
-                                                                ,(short! ADD)                                      ; ptr* += 2
-                                                                ,(short! SWP)                                      ; *rt-finish* ptr* -- ptr* *rt-finish*
-                                                                ,(keep! (short! STA))                              ; update *rt-finish*
-                                                                ,(short! SWP)                                      ; ptr* *rt-finish* -- *rt-finish* ptr*
+                                                                ,(short! INC)
+                                                                ,(short! INC)                                      ; ptr* += 2
                                                                 )))
                                                           (reverse used-locals)))
                                                   ,LIT ,(short! LIT)
@@ -358,30 +358,33 @@
                                                   ,(short! SWP)
                                                   ,(short! (keep! STA))                                    ; save lambda to *rt-finish*
                                                   ,(short! NIP)                                            ; λ ptr* -- ptr*
-                                                  ,(short! LIT) 0 2
-                                                  ,(short! ADD)                                            ; ptr* += 2
+                                                  ,(short! INC)
+                                                  ,(short! INC)                                            ; ptr* += 2
                                                   ,LIT ,(short! JMP)
                                                   ,ROT ,ROT
-                                                  ,(keep! STA)
-                                                  ,ROT ,POP
-                                                  ,(short! INC)
-                                                  ,(short! SWP)                                            ; *rt-finish* ptr* -- ptr* *rt-finish*
-                                                  ,(short! STA)                                            ; update *rt-finish*
+                                                  ,STA
                                                   ;; we're left with the old ptr to the generated "function"
                                                   )))
-                                    (length (+ 35 (* (len used-locals) 28))))
+                                    (length (+ 29 (* (len used-locals) 23))))
                                (loop
                                 rest
                                 (+ at length)
                                 (put env 'epilogue (append (get env 'epilogue #n) func))
                                 (append acc (list (tuple 'commentary `(λ CLOSURE ,name "[" ,used-locals "]" ,args))
-                                                  (tuple 'unresolved-symbol '*rt-finish* resolve1)
+                                                  (tuple 'unresolved-symbol 'malloc resolve1)
                                                   (tuple 'unresolved-symbol name resolve2))))
                              ))))
-                      ((_tailcall! name args)
+                      ((_tailcall! name args n-locals)
                        (lets ((f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) args))))
                               (at code env* (f env))
-                              (resolve (λ (loc) `(,LIT 0 ,LDZ ,LIT 2 ,MUL ; load ptr and *2 it because every local is a short
+                              (resolve (λ (loc) `(;; 1. free all locals that are not function arguments
+                                                  ;; TODO: DRY with _with-locals!
+                                                  ,LIT 0 ,LDZ         ; load local ptr from 0x0
+                                                  ,LIT ,n-locals ,SUB ; subtract the amount of freed locals
+                                                  ,LIT 0 ,STZ         ; save new local ptr to 0x0
+
+                                                  ;; 2. do the tailcall
+                                                  ,LIT 0 ,LDZ ,LIT 2 ,MUL ; load ptr and *2 it because every local is a short
                                                   ,@(fold
                                                      append #n
                                                      (map (λ (_)
@@ -394,7 +397,7 @@
                                                   ,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc) ; push function
                                                   ,(short! JMP) ; jump without a real funcall
                                                   )))
-                              (length (+ 11 (* (len args) 6))))
+                              (length (+ 20 (* (len args) 6))))
                          (loop rest (+ at length) env*
                                (append acc code (with-comment
                                                  `(tailcall! ,name)
@@ -557,17 +560,20 @@
           ,(append
             (but-last code)
             (list
-             (let loop ((e (last code #f)))
+             (let loop ((e (last code #f))
+                        (n-locals 0))
                (cond
                 ((eq? (car* e) 'nigeb)
                  (if (null? (cdr* e))
                      '(nigeb)
-                     `(nigeb ,(loop (car* (cdr* e))) ,@(cdr* (cdr* e)))))
+                     `(nigeb ,(loop (car* (cdr* e)) n-locals) ,@(cdr* (cdr* e)))))
+                ((eq? (car* e) '_with-locals!)
+                 `(_with-locals! ,(cadr e) (,@(but-last (caddr e)) ,(loop (last (caddr e) #n) (+ n-locals (len (cadr e)))))))
                 ((eq? (car* e) 'if)
-                 `(if ,(cadr e) ,(loop (caddr e)) ,(loop (cadddr e))))
+                 `(if ,(cadr e) ,(loop (caddr e) n-locals) ,(loop (cadddr e) n-locals)))
                 (else
                  (if (eq? (car* e) name)
-                     `(_tailcall! ,name ,(cdr e))
+                     `(_tailcall! ,name ,(cdr e) ,n-locals)
                      e)))))))))
 
     (define (find-tailcalls lst)

@@ -13,8 +13,8 @@
   (equ? (band (get! ptr) malloc/free-bit) malloc/free-bit))
 
 (define (malloc/allocate-at ptr n)
-  (let ((block-size (malloc/get-block-size ptr))
-        (next-size (- block-size 2 (bior malloc/free-bit n))))
+  (let* ((block-size (malloc/get-block-size ptr))
+         (next-size (- block-size 2 (bior malloc/free-bit n))))
     (if (> next-size 3)
         (let ((next-ptr (+ ptr 2 n)))
           (set! next-ptr (bior next-size malloc/free-bit))
@@ -29,7 +29,8 @@
         (_malloc (+ ptr size 2) n))))
 
 (define (malloc n)
-  (_malloc *compiler-end* (if (equ? (band malloc/free-bit n) malloc/free-bit) n (+ 1 n))))
+  (let ((v (_malloc *compiler-end* (if (equ? (band malloc/free-bit n) malloc/free-bit) n (+ 1 n)))))
+    v))
 
 (define (malloc/update-refs p)
   (if (< p *compiler-end*)

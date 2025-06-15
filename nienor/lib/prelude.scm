@@ -337,12 +337,10 @@
 
   (bior* color fill layer fx fy)
 
-  (allocate-local! mask) ; this sucks, TODO: fix the macroexpander
-  (short->byte mask)
-
-  (pus! #x2e)
-  (deo!)
-  (free-locals! 1))
+  (with-locals! (mask)
+    (short->byte mask)
+    (pus! #x2e)
+    (deo!)))
 
 (define (fill! x y color layer)
   (pixel! x y color fill-mode layer 0 0))
@@ -358,12 +356,10 @@
 
   (bior* bpp2? layer fx fy color)
 
-  (allocate-local! mask) ; this sucks, TODO: fix the macroexpander
-  (short->byte mask)
-
-  (pus! #x2f)
-  (deo!)
-  (free-locals! 1))
+  (with-locals! (mask)
+    (short->byte mask)
+    (pus! #x2f)
+    (deo!)))
 
 (define (mouse-x)
   (pus! #x92)
@@ -406,28 +402,22 @@
     to (uxn-call! (2) jmp)))
 
 (define-macro-rule ()
+  (with-locals! names . body)
+  (_with-locals! names body))
+
+(define-macro-rule ()
   (loopn (it from to by) . body)
   (begin
     to from
     (with-label _loop
       (uxn-call! (2) dup)
-      (allocate-local! it)
-      (begin . body)
-      (free-locals! 1)
-      ;; (debug!)
+      (with-locals! (it) . body)
       (+ by (begin)) ; from += by ; begin as i don't have any way to say "take from the top of the stack" lmao!
       (if (byte->short (uxn-call! (k 2) gth))
           (jmp! _loop)
           (begin
             (uxn-call! (2) pop)
             (uxn-call! (2) pop))))))
-
-(define-macro-rule ()
-  (with-local k v . body)
-  (begin
-    v (allocate-local! k)
-    (begin . body)
-    (free-locals! 1)))
 
 ;; (define-macro-rule (_)
 ;;   (_let-loop name (_ . keys) (_ . vals) (_ (key value) . rest) . body)
@@ -447,12 +437,31 @@
 ;;   (_let-loop loop (_ key) (_ val) (_ . rest) . body))
 
 (define-macro-rule ()
-  (let ((key val) . rest) . body)
-  (with-local key val (let rest . body)))
+  (with-local k v . body)
+  (begin
+    v (with-locals! (k) . body)))
 
 (define-macro-rule ()
-  (let ((key val)) . body)
+  (let* ((key val) . rest) . body)
+  (with-local key val (let* rest . body)))
+
+(define-macro-rule ()
+  (let* ((key val)) . body)
   (with-local key val . body))
+
+(define-macro-rule (_)
+  (let ((key val) . rest) . body)
+  (let (_ key) (_ val) rest . body))
+
+(define-macro-rule (_)
+  (let (_ . keys) (_ . values) ((key val) . rest) . body)
+  (let (_ key . keys) (_ val . values) rest . body))
+
+(define-macro-rule (_ ())
+  (let (_ . keys) (_ . values) () . body)
+  (begin
+    (begin . values)
+    (with-locals! keys . body)))
 
 (define (modulo a mod)
   (- a (* (/ a mod) mod)))
@@ -488,10 +497,10 @@
 (alloc! *rand-seed-state* 8 91)
 
 (define (rand)
-  (let ((x (get! *rand-seed-state*))
-        (x (bxor x (<< x 3)))
-        (x (bxor x (>> x 7)))
-        (x (bxor x (<< x 1))))
+  (let* ((x (get! *rand-seed-state*))
+         (x (bxor x (<< x 3)))
+         (x (bxor x (>> x 7)))
+         (x (bxor x (<< x 1))))
     (set! *rand-seed-state* x)
     x))
 

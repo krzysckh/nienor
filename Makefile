@@ -4,7 +4,7 @@ PREFIX=~/.local
 maybe_sqlite != $(OL) -e '(if (has? *features* (quote sqlite)) "`pkg-config --cflags --libs sqlite3`" "")'
 
 all: bin/nienor
-bin/nienor: nienor.scm nienor/*.scm bin
+bin/nienor: nienor.scm nienor/*.scm nienor/lib/*.scm bin
 	$(OL) -x c -o - nienor.scm | $(CC) -static -o bin/nienor -x c - $(maybe_sqlite) -lm -lpthread
 bin:
 	mkdir -p bin
