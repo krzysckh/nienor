@@ -119,7 +119,7 @@
      (name _arg1 . argn)
      (name _arg1 (name . argn)))
 
-   (define-macro-rule ()
+   (define-macro-rule (_)
      (name _arg1 _arg2)
      (begin
        _arg1 _arg2

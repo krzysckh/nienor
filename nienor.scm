@@ -40,7 +40,7 @@
            ;; TODO: generalize -o -
            (for-each
             print
-            (call/cc (λ (c) (n/compile (file->sexps (car extra)) (if opt? 4 #f) #f c #f)))))
+            (call/cc (λ (c) (n/compile (n/attach-prelude (file->sexps (car extra))) (if opt? 4 #f) #f c #f)))))
           (dump
            (let ((f (if (equal? out "-")
                         stdout

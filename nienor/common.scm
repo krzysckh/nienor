@@ -5,6 +5,7 @@
 
   (export
    file->sexps
+   empty-env
    warn
    error
 
@@ -76,6 +77,15 @@
         (put 'jmi `(,JMI 0))
         (put 'jsi `(,JSI 0))
         (put 'lit `(,LIT 0))))
+
+    (define empty-env
+      (pipe empty
+        (put 'labels   empty) ; ff of labels & constants, global
+        (put 'locals   #n)    ; a list, newest consed before, then removed at free-locals!
+        (put 'macros   empty) ; ff of macro-name -> λ (exp) -> rewritten
+        (put 'opt?     #f)    ; should code be optimised?
+        (put 'epilogue #n)    ; epilogue compiled after 1st codegen pass.
+        ))
 
     (define (maybe-opc x) (if (symbol? x) (get *opcodes* x #f) x))
     (define (short! x)  (bior (maybe-opc x) #b00100000))

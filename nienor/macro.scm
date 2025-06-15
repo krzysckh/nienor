@@ -8,12 +8,20 @@ a simple macro system for nienor. nothing fancy, just enough to get the lisp goi
    (nienor common))
 
   (export
+   make-pred
    atom?
    macro-matches?
-   rewrite-macro)
+   rewrite-macro
+   add-macro
+   apply-macros
+   )
 
   (begin
     (define (atom? x) (and (not (pair? x)) (not (null? x))))
+
+    (define (make-pred pred sym)
+      (λ (x)
+        (if (pred x) sym #f)))
 
     (define (macro-matches? macro exp literal)
       (cond
@@ -24,6 +32,11 @@ a simple macro system for nienor. nothing fancy, just enough to get the lisp goi
         (if (eq? (car* macro) (car* exp))
             (macro-matches? (cdr* macro) (cdr* exp) literal)
             #f))
+       ((function? (car* macro))
+        (if-lets ((sym ((car macro) (car* exp)))
+                  (b (macro-matches? (cdr* macro) (cdr* exp) literal)))
+          (append `((,sym . ,(car* exp))) b)
+          #f))
        ((and (pair? (car* macro)) (pair? (car* exp)) (not (null? exp)))
         (if-lets ((a (macro-matches? (car* macro) (car* exp) literal))
                   (b (macro-matches? (cdr* macro) (cdr* exp) literal)))
@@ -38,21 +51,23 @@ a simple macro system for nienor. nothing fancy, just enough to get the lisp goi
 
     (define (rewrite-macro macro rewrite-rule exp literal)
       (let ((rewrite (macro-matches? macro exp literal)))
-        (let walk ((exp rewrite-rule))
-          (cond
-           ((null? exp) #n)
-           ((pair? (car* exp))
-            (cons
-             (walk (car exp))
-             (walk (cdr exp))))
-           ((not (pair? exp)) ; ilist = (a b . c)
-            (if-lets ((val (cdr* (assoc exp rewrite))))
-              val
-              exp))
-           (else
-            (if-lets ((val (cdr* (assoc (car exp) rewrite))))
-              (cons val (walk (cdr exp)))
-              (cons (car exp) (walk (cdr exp)))))))))
+        (if (function? rewrite-rule)
+            (rewrite-rule rewrite)
+            (let walk ((exp rewrite-rule))
+              (cond
+               ((null? exp) #n)
+               ((pair? (car* exp))
+                (cons
+                 (walk (car exp))
+                 (walk (cdr exp))))
+               ((not (pair? exp)) ; ilist = (a b . c)
+                (if-lets ((val (cdr* (assoc exp rewrite))))
+                  val
+                  exp))
+               (else
+                (if-lets ((val (cdr* (assoc (car exp) rewrite))))
+                  (cons val (walk (cdr exp)))
+                  (cons (car exp) (walk (cdr exp))))))))))
 
     (define (walk-ok lst)
       (if (null? lst)
@@ -118,4 +133,45 @@ a simple macro system for nienor. nothing fancy, just enough to get the lisp goi
      (tests-1-ok?) = #t
      (tests-2-ok?) = #t)
 
+    ;; env rule rewrite → env'
+    (define (add-macro env rule rewrite literal)
+      ;; (let* ((base (λ (exp) (error "couldn't match" exp "to any rewrite rules")))
+      (let* ((base (λ (_) #f))
+             (name (car rule))
+             (was (get (get env 'macros empty) name base)))
+        (put
+         env
+         'macros
+         (put
+          (get env 'macros empty)
+          name
+          (λ (exp)
+            (if (macro-matches? rule exp literal)
+                (rewrite-macro rule rewrite exp literal)
+                (was exp)))))))
+
+    (define (apply-macros env exp)
+      (let ((macros (get env 'macros empty)))
+        (lets ((exp changed
+                    (let walk ((exp exp))
+                      (cond
+                       ((null? exp) (values #n 0))
+                       ((atom? exp) (values exp 0))
+                       ((get macros (car* exp) #f)
+                        (if-lets ((res ((get macros (car* exp) #f) exp)))
+                          (lets ((l1 a (walk res)))
+                            (values l1 (+ a 1)))
+                          (lets ((l1 a (walk (car exp)))
+                                 (l2 b (walk (cdr exp))))
+                            (values (cons l1 l2) (+ a b)))))
+                       ((pair? (car exp))
+                        (lets ((l1 a (walk (car exp)))
+                               (l2 b (walk (cdr exp))))
+                          (values (cons l1 l2) (+ a b))))
+                       (else
+                        (lets ((l1 a (walk (cdr exp))))
+                          (values (cons (car exp) l1) a)))))))
+          (if (= changed 0)
+              exp
+              (apply-macros env exp)))))
     ))

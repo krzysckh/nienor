@@ -1,0 +1,5 @@
+(define (main)
+  (putchar (+ 90 7))
+  (putchar (- 100 3))
+  (putchar (/ (* 97 2) 2))
+  (exit 128))
