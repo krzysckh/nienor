@@ -83,7 +83,7 @@
          (else
           (loop (cdr lst) (cons (car lst) acc))))))
 
-    (define *symbols-used-internally* '(nigeb *rt-finish*))
+    (define *symbols-used-internally* '(nigeb main malloc/init *rt-finish*))
 
     (define (code->used-symbols exp)
       (uniq
@@ -457,6 +457,8 @@
                (loop (cdr exp) (add-macro env rule rewrite literal) acc (+ substitutions 1)))
               ((_flatten! code)
                (loop (append code (cdr exp)) env acc (+ substitutions 1)))
+              ((_include! filename)
+               (loop (append (file->sexps filename) (cdr exp)) env acc (+ substitutions 1)))
               (else
                (loop (cdr exp) env (append acc (list (car exp))) substitutions))))))
 
@@ -545,7 +547,7 @@
         (cons (car* lst) (but-last (cdr* lst))))))
 
     ;; TODO: fix tailcalls with more locals (e.g. in let expressions)
-    (define tailcall-ignore '(free-locals! allocate-local!)
+    (define tailcall-ignore '(free-locals! allocate-local!))
 
     (define (maybe-tailcall defun)
       (let ((name (cadr defun))
@@ -589,7 +591,7 @@
     (define (compile lst opt? with-debug? only-expand-macros verbose?)
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
 
-      (let loop ((lst lst) (at #x100) (code #n) (env (put empty-env 'opt? opt?)) (full-lst lst))
+      (let loop ((lst lst) (at #x100) (code #n) (env (put empty-env 'opt? opt?)) (full-lst #n))
         (lets ((env lst (expand-macros lst env))
                (lst (if opt? (optimize lst verbose?) lst))
                (at code* env ((codegen at lst) env))
@@ -607,7 +609,7 @@
               (loop epilogue at (append code code*) env full-lst)))))
 
     (define *prelude*
-      (file->sexps "nienor/prelude.scm"))
+      (file->sexps "nienor/lib/prelude.scm"))
 
     (define (attach-prelude lst)
       (append *prelude* lst))

@@ -129,6 +129,14 @@
   (with-label label . body)
   (_with-label label body))
 
+(define-macro-rule ()
+  (_declare-test . blah)
+  (_flatten! ()))
+
+(define-macro-rule ()
+  (include! filename)
+  (_include! filename))
+
 (define color-1 0)
 (define color-2 1)
 (define color-3 2)
@@ -161,6 +169,7 @@
 ;; ...or main in C
 ;; ...or WinMain in microsoft C
 
+(malloc/init)
 (main)
 (brk!)
 
@@ -663,6 +672,4 @@
   #x38 #x6c #x6c #x6c #x6c #x00 #x00 #x00 #x38 #x6c #x18 #x30 #x7c #x00 #x00 #x00
   #x78 #x0c #x38 #x0c #x78 #x00 #x00 #x00 #x00 #xfe #x00 #x00 #x00 #x00 #x00 #x00)
 
-(define-macro-rule ()
-  (_declare-test . blah)
-  (_flatten! ()))
+(include! "nienor/lib/malloc.scm")
