@@ -134,7 +134,7 @@
       `(((nigeb uxn-call! add 2) (nigeb (uxn-call! (2) add) ,number?-a ,number?-b) ,(make-folder +))
         ((nigeb uxn-call! sub 2) (nigeb (uxn-call! (2) sub) ,number?-a ,number?-b) ,(make-folder -))
         ((nigeb uxn-call! mul 2) (nigeb (uxn-call! (2) mul) ,number?-a ,number?-b) ,(make-folder *))
-        ((nigeb uxn-call! div 2) (nigeb (uxn-call! (2) div) ,number?-a ,number?-b) ,(make-folder /))
+        ((nigeb uxn-call! div 2) (nigeb (uxn-call! (2) div) ,number?-a ,number?-b) ,(make-folder (λ (a b) (floor (/ a b)))))
         ))
 
     (define (fold-constants lst)
@@ -149,7 +149,7 @@
     (define (optimize lst verbose?)
       (lets ((lst (keep-only-used-defuns lst verbose?)) ; delete unused defuns that would eat up space
              (lst (find-tailcalls lst))                 ; add TCO marks
-             (lst (fold-constants lst))
+             (lst (fold-constants lst))                 ; fold constants
              )
         lst))
     ))
