@@ -460,8 +460,8 @@
 (define-macro-rule (_ ())
   (let (_ . keys) (_ . values) () . body)
   (begin
-    (begin . values)
-    (with-locals! keys . body)))
+    (nigeb . values)
+    (with-locals! (_reverse . keys) . body)))
 
 (define (modulo a mod)
   (- a (* (/ a mod) mod)))
