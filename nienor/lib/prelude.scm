@@ -177,6 +177,21 @@
 
 ;;---
 
+(define-label! ___alloc-arg)
+  (uxn-call! (2) swp) ; we jumped here with JSR2k, so the address is kept, and we want to push the arg, not the address
+  (pus! 0)
+  (uxn-call! () ldz)  ; load ptr
+  (uxn-call! () inc)  ; inc ptr
+  (pus! 2)
+  (uxn-call! () mul)  ; *2 because all pointers are shorts
+  (uxn-call! (2) stz) ; store arg at ptr
+  (pus! 0)
+  (uxn-call! () ldz)
+  (uxn-call! () inc) ; load & inc ptr again
+  (pus! 0)
+  (uxn-call! () stz) ; store new ptr at 0x0
+  (uxn-call! (2 r) jmp)
+
 
 ;; I define begin with no special syntax treatment
 ;; it's a hack as follows, i declare a `nigeb' label, which is begin backwards

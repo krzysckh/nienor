@@ -13,8 +13,7 @@
      (output "-o" "--output" has-arg comment "target file"        default "a.out")
      (emacro "-m" "--macros"         comment "only expand macros")
      (opt?   "-O" "--optimize"       comment "optimize code")
-     (np     "-N" "--no-prelude"     comment "don't attach prelude")
-     (dump   "-D" "--dump"           comment "compile & disassemble to uxntal - always attaches prelude and optimizes")
+     (dump   "-D" "--dump"           comment "compile & disassemble to uxntal")
      (V      "-V" "--verbose"        comment "be verbose")
      (q      "-q" "--quiet"          comment "be quiet")
      )))
@@ -32,7 +31,6 @@
             (mac (get opt 'emacro #f))
             (opt? (get opt 'opt? #f))
             (np (get opt 'np #f))
-            (att (if np I n/attach-prelude))
             (v (get opt 'V #f))
             (dump (get opt 'dump #f)))
        (cond
@@ -42,7 +40,7 @@
            ;; TODO: generalize -o -
            (for-each
             print
-            (call/cc (λ (c) (n/compile (att (file->sexps (car extra))) (if opt? 4 #f) #f c #f)))))
+            (call/cc (λ (c) (n/compile (file->sexps (car extra)) (if opt? 4 #f) #f c #f)))))
           (dump
            (let ((f (if (equal? out "-")
                         stdout
@@ -51,7 +49,7 @@
              (when (not (eq? f stdout))
                (close-port f))))
           (else
-           (lets ((env data (n/compile-file (car extra) opt? att v))
+           (lets ((env data (n/compile-file (car extra) opt? v))
                   (n-labels (ff-fold (λ (a k v) (+ a 1)) 0 (get env 'labels empty))))
              (unless (get opt 'q #f)
                (format stdout "Assembled ~a in ~aB (~,2f% used), ~a labels~%"

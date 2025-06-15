@@ -7,5 +7,6 @@
   (putchar g))
 
 (define (main)
+  (debug!)
   (f #\a #\b #\c #\d #\e #\f #\g)
   (exit #x80))

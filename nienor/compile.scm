@@ -6,8 +6,8 @@
 
   (export
    empty-env
-   attach-prelude
    expand-macros
+   attach-prelude
    compile
    compile-file)
 
@@ -226,15 +226,12 @@
                                                    (if (list? value) '() (list (tuple 'commentary `(_push! ,value)))) ; don't comment resolving lists
                                                    code))))
                       ((_with-locals! names body)
-                       (lets ((code `(,LIT 0 ,LDZ      ; load ptr
-                                      ,INC             ; inc ptr
-                                      ,LIT 2 ,MUL      ; *2 because all locals are shorts
-                                      ,(short! STZ)    ; store arg at ptr
-                                      ,LIT 0 ,LDZ ,INC ; load & inc ptr again
-                                      ,LIT 0 ,STZ      ; store new ptr at 0x0
-                                      ))
+                       (lets ((resolve (λ (loc) ; loc = ___alloc-arg
+                                         `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc)
+                                           ,@(map (λ (_) (keep! (short! JSR))) names)
+                                           ,(short! POP))))
                               (n (len names))
-                              (code* (fold append #n (make-list n code)))
+                              (code*-len (+ 4 n))
                               (env (put env 'locals (append names (get env 'locals #n))))
                               (free (if (= n 0)
                                         (tuple 'commentary '(removed freeing of 0 locals))
@@ -243,7 +240,7 @@
                                                  ,LIT ,n ,SUB ; subtract the amount of freed locals
                                                  ,LIT 0 ,STZ  ; save new local ptr to 0x0
                                                  ))))
-                              (f (codegen (+ at (len code*)) body))
+                              (f (codegen (+ at code*-len) body))
                               (at code env (f env))
                               (env*
                                (put env 'locals (let loop ((lst (get env 'locals #n)) (n n))
@@ -256,7 +253,7 @@
                                (append
                                 acc
                                 (list (tuple 'commentary `(_with-locals! ,names ";; locals =" ,(get env 'locals #n))))
-                                (list (tuple 'bytes code*))
+                                (list (tuple 'unresolved-symbol '___alloc-arg resolve))
                                 code
                                 (list (tuple 'commentary `(freeing ,n locals ";; locals =" ,(get env* 'locals #n))))
                                 (list free)))))
@@ -620,6 +617,6 @@
     (define (attach-prelude lst)
       (append *prelude* lst))
 
-    (define (compile-file filename opt? att verbose?)
-      (compile ((if att att attach-prelude) (file->sexps filename)) opt? #f #f verbose?))
+    (define (compile-file filename opt? verbose?)
+      (compile (attach-prelude (file->sexps filename)) opt? #f #f verbose?))
     ))
