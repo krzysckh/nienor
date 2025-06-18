@@ -6,9 +6,9 @@
 (define g2 #x0f00)
 (define b2 #x00f0)
 
-(alloc! *color* 0 0)
-(alloc! *face-mode* 0 0)
-(alloc! *frame-ctr* 0 0)
+(defvar *color*)
+(defvar *face-mode*)
+(defvar *frame-ctr*)
 
 (alloc! *face*
   #b00000000
@@ -21,7 +21,7 @@
   #b00011000)
 
 (define (update-theme)
-  (if (equ? (get! *color*) 0)
+  (if (equ? *color* 0)
       (begin
         (set! *color* 1)
         (set-colors! r2 g2 b2))
@@ -34,12 +34,12 @@
 
 (define-vector (refresh)
   (fill! 0 0 color-1 0)
-  (if (equ? (get! *frame-ctr*) 16)
+  (if (equ? *frame-ctr* 16)
       (begin
         (update-theme)
         (set! *frame-ctr* 0))
-      (set! *frame-ctr* (+ (get! *frame-ctr*) 1)))
+      (set! *frame-ctr* (+ *frame-ctr* 1)))
 
-  (let ((color-bits (band #x0f (+ (get! *face-mode*) 1))))
+  (let ((color-bits (band #x0f (+ *face-mode* 1))))
     (sprite! (mouse-x) (mouse-y) *face* 0 layer-1 0 0 color-bits)
     (set! *face-mode* color-bits)))

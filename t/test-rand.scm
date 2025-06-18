@@ -27,6 +27,5 @@
 
 (define-vector (draw)
   (let ((x (modulo (rand) *width*))
-        (y (modulo (rand) *height*))
-        (heart! (get! heart!)))
+        (y (modulo (rand) *height*)))
     (heart! x y)))
