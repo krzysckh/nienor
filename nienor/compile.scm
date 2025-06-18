@@ -169,14 +169,31 @@
                                        (cond
                                         ((null? l)
                                          ;; did not found value in locals, try searching in function labels
-                                         (let ((resolve (λ (loc)
-                                                          (if byte?
-                                                              `(,LIT ,(band #xff loc))
-                                                              `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc))))))
-                                           ;; TODO: remove magic length, dry with funcall!
+                                         (lets ((variable? (has? (get env 'vars #n) value))
+                                                (resolve size (cond
+                                                               ((and byte? variable? (not (eq? mode 'no-get-var!)))
+                                                                (values
+                                                                 (λ (loc)
+                                                                   `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc) ,LDA))
+                                                                 4))
+                                                               ((and variable? (not (eq? mode 'no-get-var!)))
+                                                                (values
+                                                                 (λ (loc)
+                                                                   `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc) ,(short! LDA)))
+                                                                 4))
+                                                               (byte?
+                                                                (values
+                                                                 (λ (loc)
+                                                                   `(,LIT ,(band #xff loc)))
+                                                                 2))
+                                                               (else
+                                                                (values
+                                                                 (λ (loc)
+                                                                   `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc)))
+                                                                 3)))))
                                            (values
                                             env
-                                            (+ at (if byte? 2 3))
+                                            (+ at size)
                                             (if-lets ((loc (get (get env 'labels empty) value #f)))
                                               (list (tuple 'bytes (resolve loc))) ; great! we have loc rn, we can resolve
                                               (list (tuple 'unresolved-symbol value resolve)))))) ; we do it later
@@ -373,6 +390,18 @@
                                (append acc code (with-comment
                                                  `(tailcall! ,name)
                                                  (tuple 'unresolved-symbol (name->skip-prologue-name name) resolve))))))
+                      ;; ((_declare-var! var-name) ; TODO!
+                      ;;  (loop rest at (put env 'vars (cons var-name (get env 'vars #n))) acc))
+                      ((_get! addr)
+                       (lets ((f (codegen at `((_push! _ ,addr) (uxn-call! (2) lda))))
+                              (at code env (f env)))
+                         (loop rest at env (append acc code))))
+                      ((_addrof thing)
+                       (lets ((f (codegen at (if (has? (get env 'vars #n) thing)
+                                                 `((_push! no-get-var! ,thing))
+                                                 `((_push! _ ,thing)))))
+                              (at code env (f env)))
+                         (loop rest at env (append acc code))))
                       (else ; funcall OR ignored
                        (lets ((func (car* exp))
                               (args (cdr* exp))
@@ -394,6 +423,8 @@
                (loop (append code (cdr exp)) env acc (+ substitutions 1)))
               ((_include! filename)
                (loop (append (file->sexps filename) (cdr exp)) env acc (+ substitutions 1)))
+              ((_declare-var! var-name)
+               (loop (cdr exp) (put env 'vars (cons var-name (get env 'vars #n))) acc (+ substitutions 1)))
               (else
                (loop (cdr exp) env (append acc (list (car exp))) substitutions))))))
 

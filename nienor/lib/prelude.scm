@@ -82,11 +82,13 @@
 
 (define-macro-rule ()
   (defvar name . vs)
-  (alloc! name . vs))
+  (flatten!
+   (alloc! name . vs)
+   (_declare-var! name)))
 
 (define-macro-rule ()
   (defvar name)
-  (alloc! name 0 0))
+  (defvar name 0 0))
 
 (define-macro-rule ()
   (deo-with arg at)
@@ -391,25 +393,39 @@
   (uxn-call! () swp))
 
 ;; TODO: these should be macros
-(define (get! addr)
-  (push! addr)
-  (uxn-call! (2) lda))
+;; (define (get! addr)
+;;   (push! addr)
+;;   (uxn-call! (2) lda))
 
-(define (set! addr value)
-  (push! value)
-  (push! addr)
-  (uxn-call! (2) sta))
+(define-macro-rule ()
+  (get! addr)
+  (_get! addr))
 
-(define (get8! addr)
-  (push! addr)
-  (uxn-call! () lda)
-  (pus! 0)
-  (uxn-call! () swp))
+(define-macro-rule ()
+  (set! place value)
+  (begin
+    (push! value)
+    (push! (addrof place))
+    (uxn-call! (2) sta)))
 
-(define (set8! addr value)
-  (pus! value)
-  (push! addr)
-  (uxn-call! () sta))
+(define-macro-rule ()
+  (addrof var)
+  (_addrof var))
+
+(define-macro-rule ()
+  (get8! place)
+  (begin
+    (get! place)
+    (uxn-call! () pop)
+    (pus! 0)
+    (uxn-call! () swp)))
+
+(define-macro-rule ()
+  (set8! place value)
+  (begin
+    (pus! value)
+    (push! (addrof place))
+    (uxn-call! () sta)))
 
 (define-macro-rule ()
   (jmp! to)

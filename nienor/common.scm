@@ -81,6 +81,7 @@
     (define empty-env
       (pipe empty
         (put 'labels   empty) ; ff of labels & constants, global
+        (put 'vars     #n)    ; list of variables. these are labels that need to have _get! appended to them for easier usage
         (put 'locals   #n)    ; a list, newest consed before, then removed at free-locals!
         (put 'macros   empty) ; ff of macro-name -> λ (exp) -> rewritten
         (put 'opt?     #f)    ; should code be optimised?

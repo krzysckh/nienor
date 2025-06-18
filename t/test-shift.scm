@@ -5,7 +5,7 @@
 (defvar *bad* "bad\n" 0)
 
 (define (test res ok)
-  (puts-static (if (equ? res ok) *ok* *bad*)))
+  (puts-static (if (equ? res ok) (addrof *ok*) (addrof *bad*))))
 
 (define (main)
   (test (<< 2137 2) 8548)
