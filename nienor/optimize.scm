@@ -17,7 +17,7 @@
          (else
           (loop (cdr lst) (cons (car lst) acc))))))
 
-    (define *symbols-used-internally* '(nigeb main malloc/init *rt-finish* malloc))
+    (define *symbols-used-internally* '(nigeb main malloc/init malloc))
 
     (define (code->used-symbols exp)
       (uniq

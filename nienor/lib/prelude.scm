@@ -175,8 +175,6 @@
 (main)
 (brk!)
 
-(defvar *rt-finish* *compiler-end*)
-
 ;;---
 
 (define-label! ___alloc-arg)
@@ -245,6 +243,14 @@
 (define-binop band and 2)
 (define-binop bior ora 2)
 (define-binop bxor eor 2)
+
+(define-macro-rule ()
+  (and x . rest)
+  (if x (and . rest) #f))
+
+(define-macro-rule ()
+  (and x)
+  (if x #t #f))
 
 (define-macro-rule ()
   (bnot x)

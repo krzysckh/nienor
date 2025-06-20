@@ -325,12 +325,12 @@
                                                             (let ((n (which-local env local)))
                                                               `(,LIT ,(short! LIT)                                 ; push LIT2
                                                                 ,ROT ,ROT                                          ; ptr* LIT -- LIT ptr*
-                                                                ,(keep! STA)                                       ; save LIT to *rt-finish*
+                                                                ,(keep! STA)                                       ; save LIT
                                                                 ,ROT ,POP                                          ; drop LIT
                                                                 ,(short! INC)                                      ; ptr* ++
                                                                 ,LIT 0 ,LDZ ,LIT ,n ,SUB ,LIT 2 ,MUL ,(short! LDZ) ; load local onto stack
                                                                 ,(short! SWP)                                      ; ptr* local* -- local* ptr*
-                                                                ,(short! (keep! STA))                              ; save local to *rt-finish*
+                                                                ,(short! (keep! STA))                              ; save local
                                                                 ,(short! NIP)                                      ; local* ptr* -- ptr*
                                                                 ,(short! INC)
                                                                 ,(short! INC)                                      ; ptr* += 2
@@ -338,13 +338,13 @@
                                                           (reverse used-locals)))
                                                   ,LIT ,(short! LIT)
                                                   ,ROT ,ROT
-                                                  ,(keep! STA)))) ; save LIT to *rt-finish*
+                                                  ,(keep! STA)))) ; save LIT
                                     (resolve2 (λ (loc)                                                     ; loc = the gensymmed lambda
                                                 `(,ROT ,POP                                                ; drop LIT
                                                   ,(short! INC)                                            ; ptr* ++
                                                   ,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc) ; push the lambda
                                                   ,(short! SWP)
-                                                  ,(short! (keep! STA))                                    ; save lambda to *rt-finish*
+                                                  ,(short! (keep! STA))                                    ; save lambda
                                                   ,(short! NIP)                                            ; λ ptr* -- ptr*
                                                   ,(short! INC)
                                                   ,(short! INC)                                            ; ptr* += 2
