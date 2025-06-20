@@ -397,7 +397,7 @@
                       ((_addrof thing)
                        (lets ((f (codegen at (if (has? (get env 'vars #n) thing)
                                                  `((_push! no-get-var! ,thing))
-                                                 `((_push! _ ,thing)))))
+                                                 `(,thing))))
                               (at code env (f env)))
                          (loop rest at env (append acc code))))
                       (else ; funcall OR ignored

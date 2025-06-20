@@ -1,71 +1,80 @@
-(define malloc/free-bit #b1)
+;;; hello i re-wrote malloc as the old one literally did not fucking work
+
+(define malloc/margin 16)
+
+;; memory layout:
+;;   [ ] [    ] ...............
+;; ↑ data size  allocated data
+;; | byte short
+;; end of rom
+;;
+;; data byte: #b00000001
+;;              \_____/|
+;;   fucking unused    free flag
 
 (define (malloc/init)
-  (let ((begin-size (- #xffff *compiler-end* 64))) ; lol
-    (set! *compiler-end* (bior malloc/free-bit begin-size))))
+  (let ((begin-size (- (- #xffff *compiler-end*) malloc/margin))) ; lol
+    (set8! *compiler-end* #b1)
+    (set! (+ *compiler-end* 1) (- (- #xffff *compiler-end*) malloc/margin))))
 
+;; real ptr → block size
 (define (malloc/get-block-size ptr)
-  (bior malloc/free-bit (bxor malloc/free-bit (bior malloc/free-bit (get! ptr)))))
+  (get! (- ptr 2)))
 
+;; real ptr → free?
 (define (malloc/free? ptr)
-  (equ? (band (get! ptr) malloc/free-bit) malloc/free-bit))
+  (get8! (- ptr 3)))
 
-;; (alloc! _bs "(allocate-at) block-size: " 0)
-;; (alloc! _ns "(allocate-at)  next-size: " 0)
+;; mark real ptr as used
+(define (malloc/set-used! ptr)
+  (set8! (- ptr 3) (bxor #b1 (bior #b1 (get8! (- ptr 3))))))
 
-(define (malloc/allocate-at ptr n)
-  (let* ((block-size (malloc/get-block-size ptr))
-         (next-size (signed- (signed- (signed block-size) 2) (signed (bior malloc/free-bit n))))
-         (next-size (if (signed< next-size 0) 0 next-size)))
-    ;; (puts-static _bs)
-    ;; (print-number block-size)
-    ;; (puts-static _ns)
-    ;; (print-number next-size)
-    (if (> next-size 3)
-        (let ((next-ptr (+ ptr 2 n)))
-          (set! next-ptr (bior next-size malloc/free-bit))
-          (set! ptr (bxor malloc/free-bit (bior n malloc/free-bit))))
-        (set! ptr (bxor malloc/free-bit (bior block-size malloc/free-bit))))
-    (+ ptr 2)))
+;; mark real ptr as free
+(define (malloc/set-free! ptr)
+  (set8! (- ptr 3) (bior #b1 (get8! (- ptr 3)))))
 
-;; (alloc! _ma "_malloc: " 0)
+;; update size of real ptr
+(define (malloc/set-size! ptr sz)
+  (set! (- ptr 2) sz))
 
-(define (_malloc ptr n)
-  ;; (puts-static _ma)
-  ;; (print-number ptr)
-  ;; (print-number n)
-  (let ((size (malloc/get-block-size ptr)))
-    (if (band (malloc/free? ptr) (>= size n))
-        (malloc/allocate-at ptr n)
-        (_malloc (+ ptr size 2) n))))
-
-;; (alloc! _mal "(malloc) returning: " 0)
-;; (alloc! _malr "(malloc) requested: " 0)
+(define (malloc/create-block-after ptr sz)
+  (let ((base (+ 3 ptr (malloc/get-block-size ptr))))
+    (malloc/set-free! base)
+    (malloc/set-size! base sz)))
 
 (define (malloc n)
-  ;; (puts-static _malr)
-  ;; (print-number n)
-  (let ((v (_malloc *compiler-end* (if (equ? (band malloc/free-bit n) malloc/free-bit) n (+ 1 n)))))
-    ;; (puts-static _mal)
-    ;; (print-number v)
-    v))
+  (_malloc n (+ 3 *compiler-end*)))
 
-;; (alloc! _rf "(refs) is free: " 0)
+(define (_malloc n ptr)
+  (if (and (malloc/free? ptr) (>= (malloc/get-block-size ptr) n))
+      (let ((rest-size (- (malloc/get-block-size ptr) n)))
+        (if (> rest-size 4) ; we can insert another block later
+            (begin
+              (malloc/set-used! ptr)
+              (malloc/set-size! ptr n)
+              (malloc/create-block-after ptr (- rest-size 3))
+              )
+            (begin
+              (malloc/set-used! ptr)))
+        ptr)
+      (_malloc n (+ ptr (malloc/get-block-size ptr) 3))))
 
-(define (malloc/update-refs p)
-  (if (< p *compiler-end*)
-    (noop)
-    (let ((siz (malloc/get-block-size p)))
-      (when (and (malloc/free? p) (malloc/free? (+ p 2 siz)))
-        ;; (puts-static _rf)
-        ;; (print-number (+ p 2 siz))
-        (set! p (bior malloc/free-bit (+ (malloc/get-block-size p) (malloc/get-block-size (+ p 2 siz)) 2))))
-      (malloc/update-refs (+ (malloc/get-block-size p) 2)))))
+(define (malloc/next-block ptr)
+  (+ ptr (malloc/get-block-size ptr) 3))
+
+(define (malloc/connect-refs! ptr)
+  (if (and (<= ptr (- #xffff malloc/margin)) (>= ptr *compiler-end*))
+      (let ((next (malloc/next-block ptr)))
+        (if (and (malloc/free? ptr) (malloc/free? next))
+            (begin
+              (malloc/set-size! ptr (+ (malloc/get-block-size ptr) (malloc/get-block-size next) 3))
+              (malloc/connect-refs! ptr))
+            (malloc/connect-refs! (malloc/next-block ptr))))
+      (noop)))
 
 (define (free ptr)
-  (let ((p (- ptr 2)))
-    (set! p (bior malloc/free-bit (get! p)))
-    (malloc/update-refs *compiler-end*)))
+  (malloc/set-free! ptr)
+  (malloc/connect-refs! (+ 3 *compiler-end*)))
 
 (define-macro-rule ()
   (delete x)

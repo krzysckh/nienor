@@ -420,7 +420,7 @@
 (define-macro-rule ()
   (set8! place value)
   (begin
-    (pus! value)
+    value (uxn-call! () nip)
     (push! (addrof place))
     (uxn-call! () sta)))
 
