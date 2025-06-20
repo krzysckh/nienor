@@ -22,31 +22,32 @@
  #b00111100
  #b00000000)
 
-(alloc! mouse 0 0)
-
-(nalloc! *state* 4096)
+(defvar mouse 0 0)
+(defvar *state*)
 
 (define-vector (draw-handler)
-  (fill! 0 0 color-3 layer-0)
+  (fill! 0 0 color-4 layer-0)
   (set8! mouse-sprite (+ 1 (get8! mouse-sprite)))
-  (sprite! (mouse-x) (mouse-y) mouse-sprite 0 0 0 0 color-1)
-
-  (putchar #\!)
 
   (let ((mx (mouse-x))
         (my (mouse-y)))
+    (sprite! mx my mouse-sprite 0 0 0 0 color-1)
+
     (loopn (i 0 64 1)
       (loopn (j 0 64 1)
-        (set8! (+ *state* (+ (* (/ my 10) 64) (/ mx 10))) 1)
-         (when (get8! (+ *state* (+ (* 64 i) j)))
-           (sprite! (* j 10) (* i 10) smiley-sprite 0 0 0 0 color-1))))))
+        (when (mouse-state)
+          (set8! (+ *state* (+ (* (/ my 10) 64) (/ mx 10))) 1))
+        (when (get8! (+ *state* (+ (* 64 i) j)))
+          (sprite! (* j 10) (* i 10) smiley-sprite 0 0 0 0 color-1))))))
 
 (define (main)
   (set-screen-width! 640)
   (set-screen-height! 640)
-  (set-colors! #xff00 #xff00 #xff00)
+  (set-colors! #xfff0 #xff00 #xff00)
   (set-mouse-handler! mouse-handler)
-  (set-draw-handler! draw-handler))
+  (set-draw-handler! draw-handler)
+  (set! *state* (malloc 4096))
+  (print-number *state*)) ; (20/06/2025) lol *state* to 2137
 
 (define-vector (mouse-handler)
-  (set! mouse (mouse-state)))
+  (pixel! (mouse-x) (mouse-y) color-3 0 layer-1 0 0))
