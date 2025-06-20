@@ -40,8 +40,12 @@
 
 (define-macro-rule ()
   (signed x)
-  (bxor #x8000 (negative x)))
+  (bxor #x8000 (negative! x)))
 
 (define-macro-rule ()
-  (negative x)
+  (negative! x)
   (bior #x8000 x))
+
+(define-macro-rule ()
+  (negative? x)
+  (band #x8000 x))

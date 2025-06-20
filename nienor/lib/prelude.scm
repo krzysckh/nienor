@@ -543,18 +543,6 @@
     (loopn (j x1 x2 8)
       (sprite! j i sprite 0 layer 0 0 color))))
 
-(define-macro-rule ()
-  (_after-rt! byte)
-  (begin
-    (set8! (get! *rt-finish*) byte)
-    (set! *rt-finish* (+ *rt-finish* 1))))
-
-(define-macro-rule ()
-  (_after-rt!* short)
-  (begin
-    (set! (get! *rt-finish*) short)
-    (set! *rt-finish* (+ *rt-finish* 2))))
-
 (include! "nienor/lib/malloc.scm")
 (include! "nienor/lib/signed.scm")
 (include! "nienor/lib/font.scm")
