@@ -254,20 +254,6 @@
   (not x)
   (bnot x))
 
-;; TODO: error: (couldn't match (and) to any rewrite rules)
-;; TODO: make it possible for macros to somehow yield multiple toplevel exps OR search for macro-rules deeper than just toplevel o_O
-;; (define-macro-rule ()
-;;   (or a b)
-;;   (bior a b))
-
-;; (define-macro-rule ()
-;;   (xor a b)
-;;   (bxor a b))
-
-;; (define-macro-rule ()
-;;   (and a b)
-;;   (band a b))
-
 (define-macro-rule ()
   (> a b)
   (begin a b (uxn-call! (2) gth) (pus! 0) (uxn-call! () swp)))
@@ -399,11 +385,6 @@
   (dei!)
   (pus! 0)
   (uxn-call! () swp))
-
-;; TODO: these should be macros
-;; (define (get! addr)
-;;   (push! addr)
-;;   (uxn-call! (2) lda))
 
 (define-macro-rule ()
   (get! addr)

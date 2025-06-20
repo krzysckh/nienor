@@ -1,5 +1,3 @@
-;; TODO: implement closure generation with malloc to be able to free them
-
 (define malloc/free-bit #b1)
 
 (define (malloc/init)

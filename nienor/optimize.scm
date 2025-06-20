@@ -85,9 +85,6 @@
        (else
         (cons (car* lst) (but-last (cdr* lst))))))
 
-    ;; TODO: fix tailcalls with more locals (e.g. in let expressions)
-    (define tailcall-ignore '(free-locals! allocate-local!))
-
     (define (maybe-tailcall defun)
       (let ((name (cadr defun))
             (code (cadddr defun)))

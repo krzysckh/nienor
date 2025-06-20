@@ -390,8 +390,6 @@
                                (append acc code (with-comment
                                                  `(tailcall! ,name)
                                                  (tuple 'unresolved-symbol (name->skip-prologue-name name) resolve))))))
-                      ;; ((_declare-var! var-name) ; TODO!
-                      ;;  (loop rest at (put env 'vars (cons var-name (get env 'vars #n))) acc))
                       ((_get! addr)
                        (lets ((f (codegen at `((_push! _ ,addr) (uxn-call! (2) lda))))
                               (at code env (f env)))
