@@ -237,6 +237,8 @@
   (if exp (begin . body) (begin)))
 
 (define-binop + add 2)
+;; TODO: check if these work
+;; TODO: - doesn't work
 (define-binop - sub 2)
 (define-binop * mul 2)
 (define-binop / div 2)
@@ -513,7 +515,7 @@
 
 (define (puts-static ptr)
   (if (equ? (get8! ptr) 0)
-      #t
+      (noop)
       (begin
         (putchar (get8! ptr))
         (puts-static (+ ptr 1)))))
@@ -545,6 +547,12 @@
 (define-macro-rule ()
   (max2 a b)
   (if (> a b) a b))
+
+(define-macro-rule (as)
+  (with exp as name . body)
+  (let ((name exp))
+    (begin . body)
+    (free name)))
 
 (include! "nienor/lib/malloc.scm")
 (include! "nienor/lib/signed.scm")

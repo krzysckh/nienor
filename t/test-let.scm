@@ -1,5 +1,5 @@
 (_declare-test
- output => "a\nabc42\n42\n10\n")
+ output => "a\nabc42\n42\n10\n21\n37\n")
 
 (define (test e f)
   (let ((a 10)
@@ -20,4 +20,8 @@
 
 (define (main)
   (test 42 10)
+  (let* ((a 21)
+         (b 37))
+    (print-number a)
+    (print-number b))
   (exit!))
