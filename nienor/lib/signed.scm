@@ -38,6 +38,17 @@
    (bxor (sign a) (sign b))
    (/ (signed a) (signed b))))
 
+(define (signed> a b)
+  (let ((sa (sign a))
+        (sb (sign b)))
+  (if (equ? sa sb)
+      (if sa (< a b) (> a b))
+      (if (band sa (not sb)) #f #t))))
+
+(define-macro-rule ()
+  (signed< a b)
+  (not (signed> a b)))
+
 (define-macro-rule ()
   (signed x)
   (bxor #x8000 (negative! x)))
@@ -48,4 +59,16 @@
 
 (define-macro-rule ()
   (negative? x)
-  (band #x8000 x))
+  (if (band #x8000 x) #t #f))
+
+(define-macro-rule ()
+  (positive? x)
+  (not (negative? x)))
+
+(define-macro-rule ()
+  (signed-min2 a b)
+  (if (signed< a b) a b))
+
+(define-macro-rule ()
+  (signed-max2 a b)
+  (if (signed> a b) a b))

@@ -246,6 +246,14 @@
 (define-binop bior ora 2)
 (define-binop bxor eor 2)
 
+(define-macro-rule ()
+  (bnot x)
+  (if x #f #t))
+
+(define-macro-rule ()
+  (not x)
+  (bnot x))
+
 ;; TODO: error: (couldn't match (and) to any rewrite rules)
 ;; TODO: make it possible for macros to somehow yield multiple toplevel exps OR search for macro-rules deeper than just toplevel o_O
 ;; (define-macro-rule ()
@@ -542,6 +550,14 @@
   (loopn (i y1 y2 8)
     (loopn (j x1 x2 8)
       (sprite! j i sprite 0 layer 0 0 color))))
+
+(define-macro-rule ()
+  (min2 a b)
+  (if (< a b) a b))
+
+(define-macro-rule ()
+  (max2 a b)
+  (if (> a b) a b))
 
 (include! "nienor/lib/malloc.scm")
 (include! "nienor/lib/signed.scm")
