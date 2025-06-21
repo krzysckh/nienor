@@ -320,6 +320,10 @@
   (pus! 0)
   (uxn-call! () swp))
 
+(define-macro-rule ()
+  (= a b)
+  (equ? a b))
+
 ;; byte equal
 (define (eq? a b)
   (pus! a)
@@ -511,6 +515,15 @@
     (memcpy p a la)
     (memcpy (+ p la) b (+ lb 1))
     p))
+
+(define (string=? a b)
+  (let ((ca (get8! a))
+        (cb (get8! b)))
+    (if (= ca cb)
+        (if (= ca 0)
+            #t
+            (string=? (+ a 1) (+ b 1)))
+        #f)))
 
 (include! "nienor/lib/malloc.scm")
 (include! "nienor/lib/signed.scm")

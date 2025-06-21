@@ -1,0 +1,17 @@
+(_declare-test
+ output => "okokokok")
+
+(define (main)
+  (if (string=? "abcd" "abcd")
+      (puts "ok")
+      (puts "bad"))
+  (if (string=? "abcde" "abcd")
+      (puts "bad")
+      (puts "ok"))
+  (if (string=? "abcde" "")
+      (puts "bad")
+      (puts "ok"))
+  (if (string=? "abcde" "abcdef")
+      (puts "bad")
+      (puts "ok"))
+  (exit!))
