@@ -468,14 +468,41 @@
   (loopn (i 0 len 1)
     (set8! (+ dst i) (get8! (+ src i)))))
 
-(define (_strlen p n)
-  (if (equ? (get8! p) 0)
+(define (_find-chr p n chr)
+  (if (bior (equ? (get8! p) 0) (equ? (get8! p) chr))
       n
-      (_strlen (+ p 1) (+ n 1))))
+      (_find-chr (+ p 1) (+ n 1) chr)))
+
+(define (_strlen p n)
+  (_find-chr p n 0))
 
 (define-macro-rule ()
   (strlen p)
   (_strlen p 0))
+
+(define-macro-rule ()
+  (find-char p chr)
+  (_find-chr p 0 chr))
+
+(define-macro-rule ()
+  (strchr p chr)
+  (find-char p chr))
+
+;; useful for displaying multiline text
+(define-macro-rule ()
+  (call-with-lines f str)
+  (_call-with-lines f str 0))
+
+;; f = (λ (s counter) ...)
+(define (_call-with-lines f str ctr)
+  (when (not (equ? (strlen str) 0))
+    (let* ((len (find-char str #\newline))
+           (p (malloc (+ len 1))))
+      (memcpy p str len)
+      (set8! (+ p len) 0)
+      (f p ctr)
+      (free p)
+      (_call-with-lines f (+ str len 1) (+ ctr 1)))))
 
 (include! "nienor/lib/malloc.scm")
 (include! "nienor/lib/signed.scm")

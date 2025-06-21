@@ -13,8 +13,6 @@
       (sprite! (+ x 8) (+ y 8) (+ dat (* 3 8)) 0 layer 0 0 color))
     (+ x w)))
 
-;; TODO: should this return x'?
-;; TODO: i could add a measure-text function so i don't think it's necessary
 (define (uf2/vputs font x y str layer color)
   (let ((chr (get8! str)))
     (when (not (equ? chr 0))
@@ -25,17 +23,25 @@
        (+ str 1)
        layer color))))
 
+(define (uf2/_measure-text font str w)
+  (let ((chr (get8! str)))
+    (if (equ? chr 0)
+        w
+        (uf2/_measure-text font (+ str 1) (+ w (get8! (+ font chr)))))))
+
+(define-macro-rule ()
+  (uf2/measure-text font str)
+  (uf2/_measure-text font str 0))
+
 ;; TODO: add uf1 & uf3 routines. uf1 is done already but uses only builtin atari8
 (define (vputc chr x y color layer)
   (sprite! x y (+ *atari8* (* 8 chr)) 0 layer 0 0 color))
 
 (define (vputs ptr x y color layer)
   (let ((chr (get8! ptr)))
-    (if (equ? chr 0)
-        (noop)
-        (begin
-          (vputc chr x y color layer)
-          (vputs (+ ptr 1) (+ x 8) y color layer)))))
+    (when (not (equ? chr 0))
+      (vputc chr x y color layer)
+      (vputs (+ ptr 1) (+ x 8) y color layer))))
 
 (alloc! *atari8*
   #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08 #x08

@@ -25,6 +25,7 @@
 
 (define-simple-deo2 set-draw-handler! #x20)
 (define-simple-deo2 set-mouse-handler! #x90)
+(define-simple-deo2 set-key-handler! #x80)
 
 (define-simple-deo2 set-color-r! #x08)
 (define-simple-deo2 set-color-g! #x0a)
@@ -83,6 +84,18 @@
 (define (mouse-y)
   (pus! #x94)
   (dei2!))
+
+(define (key-pressed)
+  (pus! #x83)
+  (dei2!))
+
+(define (button-pressed)
+  (pus! #x82)
+  (dei2!)
+  (with-locals! (b) ; Seriously? RET is a CR?
+    (if (equ? b 13)
+        #\newline
+        b)))
 
 (define (mouse-state)
   (pus! #x96)
