@@ -225,9 +225,6 @@
   (begin . exp)
   (nigeb . (_reverse . exp)))
 
-(define-simple-deo putchar #x18)
-(define-simple-deo putchar-error #x19)
-
 (define-macro-rule ()
   (debug!)
   (begin (pus! 1) (pus! #x0e) (deo!)))
@@ -328,71 +325,6 @@
   (pus! a)
   (pus! b)
   (uxn-call! () equ))
-
-(define-simple-deo2 set-draw-handler! #x20)
-(define-simple-deo2 set-mouse-handler! #x90)
-
-(define-simple-deo2 set-color-r! #x08)
-(define-simple-deo2 set-color-g! #x0a)
-(define-simple-deo2 set-color-b! #x0c)
-
-(define-simple-deo2 set-screen-width! #x22)
-(define-simple-deo2 set-screen-height! #x24)
-
-(define (set-colors! r g b)
-  (set-color-r! r)
-  (set-color-g! g)
-  (set-color-b! b))
-
-(define-simple-deo2 pick-x! #x28)
-(define-simple-deo2 pick-y! #x2a)
-
-(define (pick-pixel! x y)
-  (pick-x! x)
-  (pick-y! y))
-
-(define (pixel! x y color fill layer fx fy)
-  (pick-pixel! x y)
-
-  (bior* color fill layer fx fy)
-
-  (with-locals! (mask)
-    (short->byte mask)
-    (pus! #x2e)
-    (deo!)))
-
-(define (fill! x y color layer)
-  (pixel! x y color fill-mode layer 0 0))
-
-(define (draw-pixel! x y color)
-  (pixel! x y color 0 0 0 0))
-
-(define-simple-deo2 pick-sprite! #x2c)
-
-(define (sprite! x y sprite bpp2? layer fx fy color)
-  (pick-pixel! x y)
-  (pick-sprite! sprite)
-
-  (bior* bpp2? layer fx fy color)
-
-  (with-locals! (mask)
-    (short->byte mask)
-    (pus! #x2f)
-    (deo!)))
-
-(define (mouse-x)
-  (pus! #x92)
-  (dei2!))
-
-(define (mouse-y)
-  (pus! #x94)
-  (dei2!))
-
-(define (mouse-state)
-  (pus! #x96)
-  (dei!)
-  (pus! 0)
-  (uxn-call! () swp))
 
 (define-macro-rule ()
   (get! addr)
@@ -498,28 +430,6 @@
   (noop)
   (begin))
 
-;; very very inefficient and local-stack exhausting way to print a number
-(define (_print-number n depth)
-  (if (equ? 1 (band (equ? n 0) (> depth 0)))
-      (noop)
-      (begin
-        ;; (debug!)
-        (_print-number (/ n 10) (+ depth 1)) ; ouch!
-        (putchar (+ #\0 (modulo n 10))))))
-
-(define-macro-rule ()
-  (print-number n)
-  (begin
-    (_print-number n 0)
-    (putchar #\newline)))
-
-(define (puts-static ptr)
-  (if (equ? (get8! ptr) 0)
-      (noop)
-      (begin
-        (putchar (get8! ptr))
-        (puts-static (+ ptr 1)))))
-
 ;; https://github.com/krzysckh/goofing/blob/master/uxn-helpers.c
 ;; https://en.wikipedia.org/wiki/Xorshift
 (alloc! *rand-seed-state* 8 91)
@@ -554,6 +464,20 @@
     (begin . body)
     (free name)))
 
+(define (memcpy dst src len)
+  (loopn (i 0 len 1)
+    (set8! (+ dst i) (get8! (+ src i)))))
+
+(define (_strlen p n)
+  (if (equ? (get8! p) 0)
+      n
+      (_strlen (+ p 1) (+ n 1))))
+
+(define-macro-rule ()
+  (strlen p)
+  (_strlen p 0))
+
 (include! "nienor/lib/malloc.scm")
 (include! "nienor/lib/signed.scm")
 (include! "nienor/lib/font.scm")
+(include! "nienor/lib/io.scm")

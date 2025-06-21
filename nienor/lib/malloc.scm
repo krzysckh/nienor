@@ -76,6 +76,13 @@
   (malloc/set-free! ptr)
   (malloc/connect-refs! (+ 3 *compiler-end*)))
 
+(define (realloc p size)
+  (let* ((old (malloc/get-block-size p))
+         (newptr (malloc size)))
+    (memcpy newptr p old)
+    (free p)
+    newptr))
+
 (define-macro-rule ()
   (delete x)
   (free x))
