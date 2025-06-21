@@ -2,14 +2,31 @@
 
 (define malloc/margin 16)
 
+;;; WARNING
+;; You have to be really, really careful when using memory spat out by malloc.
+;; Do not ever try writing outside of mallocated bounds. This will make it explode. Future allocations will be impossible.
+;;
+;; Example of what *not* to do:
+;;
+;;   (let ((p (malloc 2)))
+;;     (memcpy p from-somewhere 4)) ; <- here we write overwrite 2 bytes of internal data
+;;
+;; Because of how dead simple this allocator is, You have to be really careful.
+;; You have been warned.
+
 ;; memory layout:
-;;   [ ] [    ] ...............
-;; ↑ data size  allocated data
-;; | byte short
-;; end of rom
+;;   #xXX #xYY #xZZ ........................ (NO PADDING)   \
+;; ↑ \__/ \_______/ \______________________/ \__________/   |
+;; | |    |          [#xYYZZ of user data]     [0 bytes   ] | repeats until #xffff - malloc/margin
+;; | |    [size short]                         [of padding] |
+;; | [data byte]                                            |
+;; end of rom                                               /
+;;
+;; please do note the "NO PADDING" between an allocation & start of important private data of next cell.
+;; don't do off by one errors
 ;;
 ;; data byte: #b00000001
-;;              \_____/|
+;;              \_____/↑
 ;;   fucking unused    free flag
 
 (define (malloc/init)
