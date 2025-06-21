@@ -13,6 +13,8 @@ $ ./bin/nienor -h
 
 ## examples
 
+### Hello, World!
+
 ```scheme
 (define (main)
   (puts "Hello, World!\n")
@@ -30,4 +32,80 @@ $ bin/nienor -o hello.tal -OD hello.scm && uxnasm hello.tal hello.rom && uxnemu 
 Assembled hello.rom in 965 bytes(1.48% used), 0 labels, 0 macros.
 Hello, World!
 Run: Ended.
+```
+
+### Varvara wrappers
+
+```scheme
+(define (main)
+  (set-colors! #xffff #x0000 #x000)
+  (set-draw-handler! on-draw))
+
+(define-vector (on-draw)
+  (fill! 0 0 color-1 layer-0))
+```
+
+### Macros
+
+```scheme
+(alloc! spr #xf0 #xf0 #xf0 #xf0 #x0f #x0f #x0f #x0f)
+
+(define-macro-rule (being execute) ; <- being and execute are literals
+  (with-draw-handler being f execute . body)
+  (begin
+    (set-draw-handler! f) . body))
+
+(define (main)
+  (with-draw-handler being draw execute
+    (set-screen-width! 400)
+    (set-screen-height! 300)
+    (set-colors! #x0f00 #x00f0 #x000f)
+    (print-number 42)))
+
+(define-vector (draw)
+  (loopn (i 0 4 1)
+    (fill-rect! spr i (* i 100) 0 (+ 100 (* i 200)) 300 0)))
+```
+
+### Anonymous functions
+
+```scheme
+(alloc! *str* "test\n")
+
+(define (apply1 f arg)
+  (f arg))
+
+(define (main)
+  (let ((printc (λ (c) (putchar c))))
+    (loopn (i 0 5 1)
+      (apply1 printc (get8! (+ *str* i)))))) ; <- get8! is a byte dereference.
+                                             ; get! would dereference a short
+```
+
+### Closures
+
+```scheme
+(define (make-adder a)
+  (λ (b)
+    (λ (c)
+      (+ a b c)))) ; <- vararg + (it's a macro)
+
+(define (main)
+  (let ((f ((make-adder 21) 10)))
+    (print-number (f 11))
+    (exit 128)))
+```
+
+### TCO
+
+```scheme
+(define (test-call-stack n)
+  ;; (print-number n) ; <- uncomment this to get a countdown from #xffff to 0
+  (if (equ? n 0)
+      0
+      (test-call-stack (- n 1))))
+
+(define (main)
+  (print-number (test-call-stack #xffff))
+  (exit 128))
 ```
