@@ -18,6 +18,12 @@
      (q      "-q" "--quiet"          comment "be quiet")
      )))
 
+(define (print-used-labels env)
+  (print "Used labels:")
+  (ff-map
+   (λ (k v) (format stdout "  ~a: |~4,'0x~%" k v))
+   (get env 'labels empty)))
+
 (λ (args)
   (process-arguments
    (cdr args) command-line-rules "you lose"
@@ -57,6 +63,9 @@
                        (format-number-base2 (len data))
                        (* 100 (/ (len data) (<< 1 16)))
                        n-labels))
+             ;; TODO: delete unused labels so i can show them here
+             ;; (when v
+             ;;   (print-used-labels env))
              (list->file data out))))
          0)
         ((> (length extra) 1) (error "Too many files."))
