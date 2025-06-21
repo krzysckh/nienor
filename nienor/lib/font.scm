@@ -1,3 +1,31 @@
+;; filename-ptr → font-ptr
+(define (uf2/load filename-ptr)
+  (read-file filename-ptr))
+
+;; returns x'
+(define (uf2/vputc font x y chr layer color)
+  (let ((w (get8! (+ font chr)))
+        (dat (+ font #xff (* chr 4 8))))
+    (sprite! x y dat 0 layer 0 0 color)
+    (sprite! x (+ y 8) (+ dat 8) 0 layer 0 0 color)
+    (when (> w 8)
+      (sprite! (+ x 8) y (+ dat (* 2 8)) 0 layer 0 0 color)
+      (sprite! (+ x 8) (+ y 8) (+ dat (* 3 8)) 0 layer 0 0 color))
+    (+ x w)))
+
+;; TODO: should this return x'?
+;; TODO: i could add a measure-text function so i don't think it's necessary
+(define (uf2/vputs font x y str layer color)
+  (let ((chr (get8! str)))
+    (when (not (equ? chr 0))
+      (uf2/vputs
+       font
+       (uf2/vputc font x y chr layer color)
+       y
+       (+ str 1)
+       layer color))))
+
+;; TODO: add uf1 & uf3 routines. uf1 is done already but uses only builtin atari8
 (define (vputc chr x y color layer)
   (sprite! x y (+ *atari8* (* 8 chr)) 0 layer 0 0 color))
 
