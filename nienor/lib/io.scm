@@ -23,6 +23,10 @@
         (putchar (get8! ptr))
         (puts-static (+ ptr 1)))))
 
+(define-macro-rule ()
+  (puts s)
+  (puts-static s))
+
 (define-simple-deo2 set-draw-handler! #x20)
 (define-simple-deo2 set-mouse-handler! #x90)
 (define-simple-deo2 set-key-handler! #x80)

@@ -209,8 +209,12 @@
                                             (at code env (f env)))
                                        (values env at code)))
                                     ((string? value)
-                                     (let ((raw (fold append #n (map (λ (x) `(,(short! LIT) 0 ,x)) (reverse (string->bytes value))))))
-                                       (values env (+ at (len raw)) (list (tuple 'bytes raw)))))
+                                     (let ((name (gensym))
+                                           (resolve (λ (loc) `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc)))))
+                                       (values
+                                        (put env 'epilogue (append (get env 'epilogue #n) `((_alloc! ,name (,value 0)))))
+                                        (+ at 3)
+                                        (with-comment `(string (,name)) (tuple 'unresolved-symbol name resolve)))))
                                     (else
                                      (error "unsupported type for _push!: " value)))))
                          (loop rest at env (append acc

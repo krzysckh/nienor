@@ -504,6 +504,14 @@
       (free p)
       (_call-with-lines f (+ str len 1) (+ ctr 1)))))
 
+(define (string-append a b)
+  (let* ((la (strlen a))
+         (lb (strlen b))
+         (p (malloc (+ la lb 1))))
+    (memcpy p a la)
+    (memcpy (+ p la) b (+ lb 1))
+    p))
+
 (include! "nienor/lib/malloc.scm")
 (include! "nienor/lib/signed.scm")
 (include! "nienor/lib/font.scm")

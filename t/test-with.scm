@@ -4,9 +4,6 @@
 (define (make x)
   (λ () x))
 
-(alloc! *ok* #\o #\k 0)
-(alloc! *bad* #\b #\a #\d 0)
-
 (define (main)
   (let* ((n1 (with (make 10) as f
                (malloc 100)
@@ -16,6 +13,6 @@
                (malloc 100)
                f2)))
     (if (equ? n1 n2)
-        (puts-static *ok*)
-        (puts-static *bad*))
+        (puts "ok")
+        (puts "bad"))
     (exit!)))
