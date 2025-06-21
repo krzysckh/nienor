@@ -1,4 +1,5 @@
-(alloc! fnt-name "/home/kpm/nmojeprogramy/uxn/projects/fonts/sans14-regular.uf2" 0)
+;; (alloc! fnt-name "/home/kpm/nmojeprogramy/uxn/projects/fonts/sans14-regular.uf2" 0)
+(alloc! fnt-name "/home/kpm/nmojeprogramy/uxn/projects/fonts/cream.uf2" 0)
 (alloc! text "The quick brown fox jumps over the lazy dog." 0)
 (nalloc! _ 512) ; <- buffer for the edited text. unsafe. lol.
 
