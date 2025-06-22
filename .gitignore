@@ -9,3 +9,4 @@ bin/*
 *.rom
 *.tal
 *.core
+s.scm

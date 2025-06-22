@@ -525,6 +525,18 @@
             (string=? (+ a 1) (+ b 1)))
         #f)))
 
+(define-macro-rule ()
+  (cond (a . b) . rest)
+  (if a (begin . b) (cond . rest)))
+
+(define-macro-rule ()
+  (cond (a . b))
+  (if a (begin . b) #f))
+
+(define-macro-rule (else)
+  (cond (else . code))
+  (cond (#t . code)))
+
 (include! "nienor/lib/malloc.scm")
 (include! "nienor/lib/signed.scm")
 (include! "nienor/lib/font.scm")
