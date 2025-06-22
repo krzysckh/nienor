@@ -487,9 +487,9 @@
     (define (compile lst opt? with-debug? only-expand-macros verbose?)
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
 
-      (let loop ((lst lst) (at #x100) (code #n) (env (put empty-env 'opt? opt?)) (full-lst #n))
+      (let loop ((lst lst) (at #x100) (code #n) (env (put empty-env 'opt? opt?)) (full-lst #n) (keep #n))
         (lets ((env lst (expand-macros lst env))
-               (lst (if opt? (optimize lst verbose?) lst))
+               (lst (if opt? (optimize lst verbose? keep) lst))
                (at code* env ((codegen at lst) env))
                (epilogue (get env 'epilogue #n))
                (env (put env 'epilogue #n))
@@ -503,7 +503,15 @@
                     (values env (resolve
                                  (put env 'labels (put (get env 'labels empty) '*compiler-end* at))
                                  (append code code*) with-debug?))))
-              (loop epilogue at (append code code*) env full-lst)))))
+              (loop
+               epilogue at
+               (append code code*)
+               env full-lst
+               (append
+                keep
+                (map
+                 (C ref 2)
+                 (filter (λ (x) (eq? (ref x 1) 'unresolved-symbol)) code*))))))))
 
     (define *prelude*
       (file->sexps "nienor/lib/prelude.scm"))

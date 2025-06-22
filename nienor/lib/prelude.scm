@@ -460,11 +460,6 @@
 (define (srand x)
   (set! *rand-seed-state* x))
 
-(define (fill-rect! sprite color x1 y1 x2 y2 layer)
-  (loopn (i y1 y2 8)
-    (loopn (j x1 x2 8)
-      (sprite! j i sprite 0 layer 0 0 color))))
-
 (define-macro-rule ()
   (min2 a b)
   (if (< a b) a b))

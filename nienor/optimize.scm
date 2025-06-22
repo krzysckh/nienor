@@ -46,10 +46,19 @@
          (else
           (loop (cdr lst))))))
 
+    (define (find-used-in-allocs lst)
+      (fold
+       (λ (a b)
+         (append a (filter symbol? (caddr b))))
+       #n
+       (filter
+        (λ (e) (eq? (car e) '_alloc!))
+        lst)))
+
     ;; This function looks from main and tries to find all functions that _are_ used
-    (define (find-used lst)
-      (if-lets ((main (find-defun lst 'main)))
-        (let loop ((seen '(main)) (syms (defun->used-symbols main)))
+    (define (find-used-from name lst)
+      (if-lets ((root (find-defun lst name)))
+        (let loop ((seen (list name)) (syms (defun->used-symbols root)))
           (if (null? syms)
               seen
               (if-lets ((fun (find-defun lst (car syms))))
@@ -58,11 +67,20 @@
                                           (λ (s) (not (has? seen s)))
                                           (defun->used-symbols fun))))
                 (loop (cons (car syms) seen) (cdr syms)))))
-        #f))
+        #n))
+
+    (define (find-used lst)
+      (append
+       (find-used-from 'main lst)
+       (fold
+        (λ (a b)
+          (append a (find-used-from b lst)))
+        #n
+        (uniq (find-used-in-allocs lst)))))
 
     ;; this removes unused defuns, defun-vectors, _alloc!s and nalloc!s
-    (define (keep-only-used-defuns lst verbose?)
-      (if-lets ((used (find-used lst)))
+    (define (keep-only-used-defuns lst verbose? keep)
+      (if-lets ((used (append keep (find-used lst))))
         (let loop ((lst lst) (acc #n))
           (cond
            ((null? lst) acc)
@@ -143,10 +161,11 @@
         constant-folders)
        lst))
 
-    (define (optimize lst verbose?)
-      (lets ((lst (keep-only-used-defuns lst verbose?)) ; delete unused defuns that would eat up space
-             (lst (find-tailcalls lst))                 ; add TCO marks
-             (lst (fold-constants lst))                 ; fold constants
+    ;; keep = list of symbols that are unresolved & are needed to keep as they might be not referenced in code
+    (define (optimize lst verbose? keep)
+      (lets ((lst (keep-only-used-defuns lst verbose? keep)) ; delete unused defuns that would eat up space
+             (lst (find-tailcalls lst))                      ; add TCO marks
+             (lst (fold-constants lst))                      ; fold constants
              )
         lst))
     ))

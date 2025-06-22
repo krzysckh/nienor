@@ -38,6 +38,12 @@
 (define-simple-deo2 set-screen-width! #x22)
 (define-simple-deo2 set-screen-height! #x24)
 
+(define-macro-rule ()
+  (set-screen-size! w h)
+  (begin
+    (set-screen-width! w)
+    (set-screen-height! h)))
+
 (define (set-colors! r g b)
   (set-color-r! r)
   (set-color-g! g)
@@ -142,3 +148,8 @@
   (set-file/length! data-size)
   (set-file/name! fname-ptr)
   (set-file/write! data-ptr))
+
+(define (fill-rect! sprite color x1 y1 x2 y2 layer)
+  (loopn (i y1 y2 8)
+    (loopn (j x1 x2 8)
+      (sprite! j i sprite 0 layer 0 0 color))))
