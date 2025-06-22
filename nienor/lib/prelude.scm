@@ -234,9 +234,13 @@
   (if exp (begin . body) (begin)))
 
 (define-binop + add 2)
-;; TODO: check if these work
-;; TODO: - doesn't work
-(define-binop - sub 2)
+
+;; TODO: - doesn't work correctly
+;; (define-binop - sub 2)
+(define-macro-rule ()
+  (- a b)
+  (begin a b (uxn-call! (2) sub)))
+
 (define-binop * mul 2)
 (define-binop / div 2)
 (define-binop band and 2)
@@ -382,6 +386,13 @@
           (begin
             (uxn-call! (2) pop)
             (uxn-call! (2) pop))))))
+
+;; (define-macro-rule ()
+;;   (while exp . body)
+;;   (with-label _while
+;;     (when exp
+;;       (begin . body)
+;;       (jmp! _while))))
 
 ;; (define-macro-rule (_)
 ;;   (_let-loop name (_ . keys) (_ . vals) (_ (key value) . rest) . body)
