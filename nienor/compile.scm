@@ -62,7 +62,10 @@
                            '((uxn-call! (2 r) jmp)))
                      )))
              (at code env* (f env)))
-        (cont rest at env* (append acc (list (tuple 'commentary `(defun ,mode ,name ,args))) code))))
+        (cont
+         rest at
+         (put env* 'arity (put (get env* 'arity empty) name (len args)))
+         (append acc (list (tuple 'commentary `(defun ,mode ,name ,args))) code))))
 
     (define (add-label env name value)
       (let ((labels (get env 'labels empty)))
@@ -409,7 +412,10 @@
                               (args (cdr* exp))
                               (f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) (reverse args)) (funcall! ,func))))
                               (at code env* (f env)))
-                         (loop rest at env* (append acc code)))))
+                         (loop
+                          rest at
+                          (put env* 'acheck (append (get env* 'acheck #n) (list `(,func ,(len args) ,exp))))
+                          (append acc code)))))
                     (loop `((_push! _ ,exp) ,@rest) at env acc) ; if we got an atom, just push it
                     ))))))
 
@@ -464,6 +470,18 @@
             #n
             lst))
 
+    (define (check-funcall-arity env)
+      (let ((arity (get env 'arity empty)))
+        (for-each
+         (λ (chk)
+           (lets ((func-name (lref chk 0))
+                  (nargs     (lref chk 1))
+                  (code      (lref chk 2)))
+             (if-lets ((n (get arity func-name #f)))
+               (when (not (= nargs n))
+                 (warn "invalid arity in function call" code "- expected" n "arguments")))))
+         (get env 'acheck empty))))
+
     ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
     (define (compile lst opt? with-debug? only-expand-macros verbose?)
@@ -479,6 +497,7 @@
           (if (null? epilogue)
               (begin
                 (kill-gensym!)
+                (check-funcall-arity env)
                 (if only-expand-macros
                     (only-expand-macros full-lst)
                     (values env (resolve

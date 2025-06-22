@@ -1,0 +1,10 @@
+(define (f0))
+(define (f1 a))
+(define (f2 a b))
+(define (f3 a b c))
+
+(define (main)
+  (f0 1 2 3)
+  (f1 1 2 3)
+  (f2 1 2 3)
+  (f3 1 2 3))

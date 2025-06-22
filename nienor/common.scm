@@ -86,6 +86,8 @@
         (put 'macros   empty) ; ff of macro-name -> λ (exp) -> rewritten
         (put 'opt?     #f)    ; should code be optimised?
         (put 'epilogue #n)    ; epilogue compiled after 1st codegen pass.
+        (put 'arity    empty) ; ff of defun-name -> arity for simple arity checking
+        (put 'acheck   #n)    ; ((func-name n-args in-exp) ...) to check arity of funcalls after compiling
         ))
 
     (define (maybe-opc x) (if (symbol? x) (get *opcodes* x #f) x))
