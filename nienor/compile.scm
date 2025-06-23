@@ -514,7 +514,12 @@
                  (filter (λ (x) (eq? (ref x 1) 'unresolved-symbol)) code*))))))))
 
     (define *prelude*
-      (file->sexps "nienor/lib/prelude.scm"))
+      (append
+       (file->sexps "nienor/lib/prelude.scm")
+       (file->sexps "nienor/lib/malloc.scm")
+       (file->sexps "nienor/lib/signed.scm")
+       (file->sexps "nienor/lib/font.scm")
+       (file->sexps "nienor/lib/io.scm")))
 
     (define (attach-prelude lst)
       (append *prelude* lst))

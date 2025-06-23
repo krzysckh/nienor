@@ -543,7 +543,3 @@
   (cond (else . code))
   (cond (#t . code)))
 
-(include! "nienor/lib/malloc.scm")
-(include! "nienor/lib/signed.scm")
-(include! "nienor/lib/font.scm")
-(include! "nienor/lib/io.scm")
