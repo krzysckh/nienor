@@ -543,3 +543,6 @@
   (cond (else . code))
   (cond (#t . code)))
 
+(define-macro-rule ()
+  (quote x)
+  (symbol x))

@@ -407,6 +407,17 @@
                                                  `(,thing))))
                               (at code env (f env)))
                          (loop rest at env (append acc code))))
+                      ((_in-epilogue! code)
+                       (loop rest at (put env 'epilogue (append (get env 'epilogue #n) code)) acc))
+                      ((symbol x)
+                       (if (symbol? x)
+                           (lets ((n (get (get env 'symbols empty) x #f)))
+                             (if n
+                                 (loop `((_push! _ ,n) ,@rest) at env acc)
+                                 (lets ((n (len (keys (get env 'symbols empty))))
+                                        (env* (put env 'symbols (put (get env 'symbols empty) x n))))
+                                   (loop `((_push! _ ,n) ,@rest) at env* acc))))
+                           (error "Not a symbol: " x)))
                       (else ; funcall OR ignored
                        (lets ((func (car* exp))
                               (args (cdr* exp))
