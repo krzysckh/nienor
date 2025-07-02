@@ -444,6 +444,7 @@
                (loop (append (file->sexps filename) (cdr exp)) env acc (+ substitutions 1)))
               ((_declare-var! var-name)
                (loop (cdr exp) (put env 'vars (cons var-name (get env 'vars #n))) acc (+ substitutions 1)))
+
               (else
                (loop (cdr exp) env (append acc (list (car exp))) substitutions))))))
 
@@ -493,12 +494,24 @@
                  (warn "invalid arity in function call" code "- expected" n "arguments")))))
          (get env 'acheck empty))))
 
+    ;; ooo! we hackin
+    (define *compiler-macros*
+      ;; literal                 match                      replace
+      `(((__append-symbols)      (__append-symbols . args) ,(λ (vs)
+                                                              (let ((args (cdr (assoc 'args vs))))
+                                                                (string->symbol
+                                                                 (fold string-append "" (map symbol->string args))))))
+        ))
+
+
     ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
     (define (compile lst opt? with-debug? only-expand-macros verbose?)
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
 
-      (let loop ((lst lst) (at #x100) (code #n) (env (put empty-env 'opt? opt?)) (full-lst #n) (keep #n))
+      (let loop ((lst lst) (at #x100) (code #n)
+                 (env (add-macros add-macro *compiler-macros* (put empty-env 'opt? opt?)))
+                 (full-lst #n) (keep #n))
         (lets ((env lst (expand-macros lst env))
                (lst (if opt? (optimize lst verbose? keep) lst))
                (at code* env ((codegen at lst) env))

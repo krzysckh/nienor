@@ -546,3 +546,28 @@
 (define-macro-rule ()
   (quote x)
   (symbol x))
+
+(define-macro-rule (42)
+  (define-struct name . rest)
+  (define-struct (42 0) name . rest))
+
+(define-macro-rule (42)
+  (define-struct (42 size) name)
+  (flatten!
+   (define-macro-rule (name quote)
+     (make-instance (quote name))
+     ((__append-symbols make- name)))
+
+   (define ((__append-symbols make- name))
+     (malloc size))))
+
+(define-macro-rule (42)
+  (define-struct (42 size) name thing . rest)
+  (flatten!
+   (define-macro-rule ()
+     ((__append-symbols name - thing) struct)
+     (get! (+ struct size)))
+   (define-macro-rule ()
+     ((__append-symbols set- name - thing !) struct value)
+     (set! (+ struct size) value))
+   (define-struct (42 (+ size 2)) name . rest)))

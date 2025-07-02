@@ -8,6 +8,7 @@
    empty-env
    warn
    error
+   add-macros
 
    maybe-opc
    short!  short?
@@ -110,5 +111,9 @@
 
     (define (file->sexps filename)
       (list->sexps (file->list filename) (λ _ _) "syntax error:"))
+
+    ;; where app = add-macro or alike
+    (define (add-macros app lst env)
+      (fold (λ (a b) (app a (cadr b) (caddr b) (car b))) env lst))
 
     ))

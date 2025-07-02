@@ -153,13 +153,7 @@
         ))
 
     (define (fold-constants lst)
-      (apply-macros
-       (fold
-        (λ (a b)
-          (add-macro a (cadr b) (caddr b) (car b)))
-        empty-env
-        constant-folders)
-       lst))
+      (apply-macros (add-macros add-macro constant-folders empty-env) lst))
 
     ;; keep = list of symbols that are unresolved & are needed to keep as they might be not referenced in code
     (define (optimize lst verbose? keep)
