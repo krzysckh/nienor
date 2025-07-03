@@ -1,6 +1,7 @@
 (define-library (nienor common)
   (import
    (owl toplevel)
+   (owl metric)
    (owl sexp))
 
   (export
@@ -9,6 +10,9 @@
    warn
    error
    add-macros
+
+   with-timer
+   lets/timer
 
    maybe-opc
    short!  short?
@@ -116,4 +120,17 @@
     (define (add-macros app lst env)
       (fold (λ (a b) (app a (cadr b) (caddr b) (car b))) env lst))
 
+    (define-syntax with-timer
+      (syntax-rules ()
+        ((_ (arg ...) . body)
+         (let ((t0 (time-ns)))
+           (lets ((arg ... (begin . body)))
+             (format stderr "    [timer] ~a took ~a~%" 'body (format-time (- (time-ns) t0)))
+             (values arg ...))))))
+
+    (define-syntax lets/timer
+      (syntax-rules ()
+        ((_ verbose? ((arg ... exp) ...) . body)
+         (lets ((arg ... (if verbose? (with-timer (arg ...) exp) exp)) ...)
+           . body))))
     ))
