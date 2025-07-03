@@ -44,7 +44,7 @@
 
 ;; mark real ptr as used
 (define (malloc/set-used! ptr)
-  (set8! (- ptr 3) (bxor #b1 (bior #b1 (get8! (- ptr 3))))))
+  (set8! (- ptr 3) (band (bnot #b1) (get8! (- ptr 3)))))
 
 ;; mark real ptr as free
 (define (malloc/set-free! ptr)

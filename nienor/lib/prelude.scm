@@ -257,11 +257,11 @@
 
 (define-macro-rule ()
   (bnot x)
-  (if x #f #t))
+  (bxor x #xffff))
 
 (define-macro-rule ()
   (not x)
-  (bnot x))
+  (if x #f #t))
 
 (define-macro-rule ()
   (> a b)
