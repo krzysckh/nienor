@@ -11,6 +11,9 @@ $ make all
 $ ./bin/nienor -h
 ```
 
+If you don't wish to build it from source, you could try the [web demo](https://pub.krzysckh.org/nienor-web-demo).
+It's the same thing, just running in wasm. I don't promise to keep it up to date with @master though.
+
 ## examples
 
 ### Hello, World!
