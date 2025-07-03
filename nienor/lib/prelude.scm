@@ -44,8 +44,8 @@
   (_λ () body))
 
 (define-macro-rule ()
-  (lambda args . body)
-  (λ args . body))
+  (lambda . rest)
+  (λ . rest))
 
 (define-macro-rule ()
   (deo!)
