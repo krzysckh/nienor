@@ -63,18 +63,22 @@
   (_malloc n (+ 3 *compiler-end*)))
 
 (define (_malloc n ptr)
-  (if (and (malloc/free? ptr) (>= (malloc/get-block-size ptr) n))
-      (let ((rest-size (- (malloc/get-block-size ptr) n)))
-        (if (> rest-size 4) ; we can insert another block later
-            (begin
-              (malloc/set-used! ptr)
-              (malloc/set-size! ptr n)
-              (malloc/create-block-after ptr (- rest-size 3))
-              )
-            (begin
-              (malloc/set-used! ptr)))
-        ptr)
-      (_malloc n (+ ptr (malloc/get-block-size ptr) 3))))
+  (cond
+   ((>= ptr (- #xffff malloc/margin))
+    0) ; out of memory
+   ((and (malloc/free? ptr) (>= (malloc/get-block-size ptr) n))
+    (let ((rest-size (- (malloc/get-block-size ptr) n)))
+      (if (> rest-size 4) ; we can insert another block later
+          (begin
+            (malloc/set-used! ptr)
+            (malloc/set-size! ptr n)
+            (malloc/create-block-after ptr (- rest-size 3))
+            )
+          (begin
+            (malloc/set-used! ptr)))
+      ptr))
+   (else
+    (_malloc n (+ ptr (malloc/get-block-size ptr) 3)))))
 
 (define (malloc/next-block ptr)
   (+ ptr (malloc/get-block-size ptr) 3))

@@ -54,6 +54,14 @@
   (not (signed> a b)))
 
 (define-macro-rule ()
+  (signed<= a b)
+  (bior (signed< a b) (= a b)))
+
+(define-macro-rule ()
+  (signed>= a b)
+  (bior (signed> a b) (= a b)))
+
+(define-macro-rule ()
   (signed x)
   (bxor #x8000 (negative! x)))
 

@@ -16,16 +16,24 @@
     (_print-number n 0)
     (putchar #\newline)))
 
-(define (puts-static ptr)
+(define (puts-static ptr putchar)
   (if (equ? (get8! ptr) 0)
       (noop)
       (begin
         (putchar (get8! ptr))
-        (puts-static (+ ptr 1)))))
+        (puts-static (+ ptr 1) putchar))))
 
 (define-macro-rule ()
   (puts s)
-  (puts-static s))
+  (puts-static s (λ (c) (putchar c))))
+
+(define-macro-rule ()
+  (eputs s)
+  (puts-static s (λ (c) (putchar-error c))))
+
+(define-macro-rule ()
+  (print s)
+  (puts s))
 
 (define-simple-deo2 set-draw-handler! #x20)
 (define-simple-deo2 set-mouse-handler! #x90)
@@ -153,3 +161,8 @@
   (loopn (i y1 y2 8)
     (loopn (j x1 x2 8)
       (sprite! j i sprite 0 layer 0 0 color))))
+
+(define (error s)
+  (eputs s)
+  (eputs "\n")
+  (exit 129))
