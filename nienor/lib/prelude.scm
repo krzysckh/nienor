@@ -611,16 +611,14 @@
   (_define-packed-struct (42 base size) name (thing pack-size) . rest)
   ;;                              ^^^^- additional size in bits after base
   (flatten! ; TODO: i wonder if it's better to have it as macros or functions, they're quite big
-   (define-macro-rule ()
-     ((__append-symbols name - thing) struct)
-       (if (> pack-size (- 16 (__pad-of size)))
-           (compiler-error "Unaligned struct" name "at item" thing "with size" pack-size)
-           (band (>> (get! (+ struct base (* 2 (/ size 16))))
-                     (- (- 16 (__pad-of size)) pack-size))
-                 (_make-1s pack-size))))
+   (define ((__append-symbols name - thing) struct)
+     (if (> pack-size (- 16 (__pad-of size)))
+         (compiler-error "Unaligned struct" name "at item" thing "with size" pack-size)
+         (band (>> (get! (+ struct base (* 2 (/ size 16))))
+                   (- (- 16 (__pad-of size)) pack-size))
+               (_make-1s pack-size))))
 
-   (define-macro-rule ()
-     ((__append-symbols set- name - thing !) struct value)
+   (define ((__append-symbols set- name - thing !) struct value)
      (if (> pack-size (- 16 (__pad-of size)))
          (compiler-error "Unaligned struct" name "at item" thing "with size" pack-size)
          (set!
@@ -628,8 +626,8 @@
           (bior
            (band (get! (__point-of struct base size)) (bnot (<< (_make-1s pack-size)
                                                                 (- (- 16 pack-size) (__pad-of size))))) ; clear value
-           (<< (band value (_make-1s pack-size)) (- (- 16 pack-size) (__pad-of size)))))
-         ))
+           (<< (band value (_make-1s pack-size)) (- (- 16 pack-size) (__pad-of size)))))))
+
    (_define-packed-struct (42 base (+ size pack-size)) name . rest)))
 
 (define-macro-rule (42)
