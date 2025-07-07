@@ -1,7 +1,35 @@
-;; I wrote a tiny unused code deletion thingy to be able to just put tons of defuns here
-;; and attach, then optimize them out of every rom. this seems to be the most user-friendly thing to do
-;; Another thing that crossed my mind was to automatically detect undefined, but define-able functions
-;; and compile them during (finalize), but that seems much more complicated than this
+;;;--- initialization
+
+(codegen-at! #x100)
+
+;; this gets called at #x100, this should contain only the most important stuff
+;; to bootstrap the execution
+;; that's why the compiler requires (main) to be defined, it's like _start in assemblers
+;; ...or main in C
+;; ...or WinMain in microsoft C
+
+(malloc/init)
+(main)
+(brk!)
+
+;;--- end initialization
+
+(define-label! ___alloc-arg)
+  (uxn-call! (2) swp) ; we jumped here with JSR2k, so the address is kept, and we want to push the arg, not the address
+  (pus! 0)
+  (uxn-call! () ldz)  ; load ptr
+  (uxn-call! () inc)  ; inc ptr
+  (pus! 2)
+  (uxn-call! () mul)  ; *2 because all pointers are shorts
+  (uxn-call! (2) stz) ; store arg at ptr
+  (pus! 0)
+  (uxn-call! () ldz)
+  (uxn-call! () inc) ; load & inc ptr again
+  (pus! 0)
+  (uxn-call! () stz) ; store new ptr at 0x0
+  (uxn-call! (2 r) jmp)
+
+;;- rest of prelude
 
 (define-macro-rule ()
   (defun f (arg1 . args) . body)
@@ -165,37 +193,6 @@
 (define fg-fill-bl #xd0)
 (define fg-fill-tr #xe0)
 (define fg-fill-tl #xf0)
-
-(codegen-at! #x100)
-
-;;;---
-;; this gets called at #x100, this should contain only the most important stuff
-;; to bootstrap the execution
-;; that's why the compiler requires (main) to be defined, it's like _start in assemblers
-;; ...or main in C
-;; ...or WinMain in microsoft C
-
-(malloc/init)
-(main)
-(brk!)
-
-;;---
-
-(define-label! ___alloc-arg)
-  (uxn-call! (2) swp) ; we jumped here with JSR2k, so the address is kept, and we want to push the arg, not the address
-  (pus! 0)
-  (uxn-call! () ldz)  ; load ptr
-  (uxn-call! () inc)  ; inc ptr
-  (pus! 2)
-  (uxn-call! () mul)  ; *2 because all pointers are shorts
-  (uxn-call! (2) stz) ; store arg at ptr
-  (pus! 0)
-  (uxn-call! () ldz)
-  (uxn-call! () inc) ; load & inc ptr again
-  (pus! 0)
-  (uxn-call! () stz) ; store new ptr at 0x0
-  (uxn-call! (2 r) jmp)
-
 
 ;; I define begin with no special syntax treatment
 ;; it's a hack as follows, i declare a `nigeb' label, which is begin backwards
