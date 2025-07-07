@@ -89,7 +89,6 @@
         (put 'vars     #n)    ; list of variables. these are labels that need to have _get! appended to them for easier usage
         (put 'locals   #n)    ; a list, newest consed before, then removed at free-locals!
         (put 'macros   empty) ; ff of macro-name -> λ (exp) -> rewritten
-        (put 'opt?     #f)    ; should code be optimised? ; TODO: <- is this needed
         (put 'epilogue #n)    ; epilogue = code compiled later
         (put 'arity    empty) ; ff of defun-name -> arity for simple arity checking
         (put 'symbols  empty) ; ff of symbol-name -> id

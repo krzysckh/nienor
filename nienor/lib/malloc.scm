@@ -59,8 +59,14 @@
     (malloc/set-free! base)
     (malloc/set-size! base sz)))
 
+(define (memset b c len)
+  (loopn (i 0 len 1)
+    (set8! (+ b i) c)))
+
 (define (malloc n)
-  (_malloc n (+ 3 *compiler-end*)))
+  (let ((p (_malloc n (+ 3 *compiler-end*))))
+    (memset p 0 n)
+    p))
 
 (define (_malloc n ptr)
   (cond

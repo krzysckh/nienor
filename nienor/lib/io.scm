@@ -16,6 +16,7 @@
     (_print-number n 0)
     (putchar #\newline)))
 
+;; TODO: DONT DO IT LIKE THIS THIS GENERATES ONE QUADRILLION GENSYMS
 (define (puts-static ptr putchar)
   (if (equ? (get8! ptr) 0)
       (noop)
@@ -23,13 +24,19 @@
         (putchar (get8! ptr))
         (puts-static (+ ptr 1) putchar))))
 
+(define (_putchar c)
+  (putchar c))
+
+(define (_eputchar c)
+  (putchar-error c))
+
 (define-macro-rule ()
   (puts s)
-  (puts-static s (λ (c) (putchar c))))
+  (puts-static s _putchar))
 
 (define-macro-rule ()
   (eputs s)
-  (puts-static s (λ (c) (putchar-error c))))
+  (puts-static s _eputchar))
 
 (define-macro-rule ()
   (print s)

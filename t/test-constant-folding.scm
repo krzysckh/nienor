@@ -1,7 +1,7 @@
 (_declare-test
  output => "aaaa")
 
-(define blah (+ 10 2)) ; this works *only* when compiled with -O
+(define blah (+ 10 2))
 
 (define (main)
   (putchar (+ blah 85))

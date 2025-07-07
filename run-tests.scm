@@ -26,7 +26,7 @@
             (N/error "invalid test expression " exp)))))
 
 (define (compile filename)
-  (if (system `("./bin/nienor" "-qOo" ,*tmp-rom-location* ,filename))
+  (if (system `("./bin/nienor" "-qo" ,*tmp-rom-location* ,filename))
       1
       0))
 

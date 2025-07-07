@@ -48,6 +48,10 @@
   (λ . rest))
 
 (define-macro-rule ()
+  (compiler-error . vs)
+  (_compiler-error vs))
+
+(define-macro-rule ()
   (deo!)
   (uxn-call! () deo))
 
@@ -531,6 +535,21 @@
             (string=? (+ a 1) (+ b 1)))
         #f)))
 
+(define (_expt _a b a)
+  (cond
+   ((= b 0) 1)
+   ((= b 1) _a)
+   (else
+    (_expt (* _a a) (- b 1) a))))
+
+(define-macro-rule ()
+  (expt a b)
+  (_expt a b a))
+
+(define-macro-rule ()
+  (_make-1s n)
+  (- (expt 2 n) 1))
+
 (define-macro-rule ()
   (cond (a . b) . rest)
   (if a (begin . b) (cond . rest)))
@@ -571,3 +590,54 @@
      ((__append-symbols set- name - thing !) struct value)
      (set! (+ struct size) value))
    (define-struct (42 (+ size 2)) name . rest)))
+
+(define-macro-rule (42)
+  (define-struct (42 size) name (thing pack-size) . rest)
+  (_define-packed-struct (42 size 0) name (thing pack-size) . rest))
+
+(define-macro-rule (42)
+  (_define-packed-struct (42 a b) name thing . rest)
+  (_define-packed-struct (42 a b) name (thing 16) . rest))
+
+(define-macro-rule ()
+  (__pad-of size)
+  (- size (* 16 (/ size 16))))
+
+(define-macro-rule ()
+  (__point-of struct base size)
+  (+ struct base (* 2 (/ size 16))))
+
+(define-macro-rule (42)
+  (_define-packed-struct (42 base size) name (thing pack-size) . rest)
+  ;;                              ^^^^- additional size in bits after base
+  (flatten! ; TODO: i wonder if it's better to have it as macros or functions, they're quite big
+   (define-macro-rule ()
+     ((__append-symbols name - thing) struct)
+       (if (> pack-size (- 16 (__pad-of size)))
+           (compiler-error "Unaligned struct" name "at item" thing "with size" pack-size)
+           (band (>> (get! (+ struct base (* 2 (/ size 16))))
+                     (- (- 16 (__pad-of size)) pack-size))
+                 (_make-1s pack-size))))
+
+   (define-macro-rule ()
+     ((__append-symbols set- name - thing !) struct value)
+     (if (> pack-size (- 16 (__pad-of size)))
+         (compiler-error "Unaligned struct" name "at item" thing "with size" pack-size)
+         (set!
+          (__point-of struct base size)
+          (bior
+           (band (get! (__point-of struct base size)) (bnot (<< (_make-1s pack-size)
+                                                                (- (- 16 pack-size) (__pad-of size))))) ; clear value
+           (<< (band value (_make-1s pack-size)) (- (- 16 pack-size) (__pad-of size)))))
+         ))
+   (_define-packed-struct (42 base (+ size pack-size)) name . rest)))
+
+(define-macro-rule (42)
+  (_define-packed-struct (42 base size) name)
+  (flatten!
+   (define-macro-rule (name quote)
+     (make-instance (quote name))
+     ((__append-symbols make- name)))
+
+   (define ((__append-symbols make- name))
+     (malloc (+ base (/ size 8) 1)))))

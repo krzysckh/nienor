@@ -265,7 +265,7 @@
                              (keep?   (has? mode 'k)))
                          (loop rest (+ at 1) env (append acc (list (opcode opc short? return? keep?))))))
                       ((funcall! func)
-                       (if (and (eq? func 'nigeb) (get env 'opt? #f)) ; TODO: generalize
+                       (if (eq? func 'nigeb) ; TODO: generalize
                            (loop rest at env (append acc (list (tuple 'commentary '(removed nigeb call)))))
                            (lets ((f (codegen at `((_push! _ ,func))))
                                   (at code env* (f env)))
@@ -418,6 +418,8 @@
                                         (env* (put env 'symbols (put (get env 'symbols empty) x n))))
                                    (loop `((_push! _ ,n) ,@rest) at env* acc))))
                            (error "Not a symbol: " x)))
+                      ((_compiler-error data)
+                       (error "Cannot compile, user-defined error: " data))
                       (else ; funcall OR ignored
                        (lets ((func (car* exp))
                               (args (cdr* exp))
@@ -506,15 +508,15 @@
 
     ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
-    (define (compile lst opt? with-debug? only-expand-macros verbose?)
+    (define (compile lst with-debug? only-expand-macros verbose?)
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
 
       (let loop ((lst lst) (at #x100) (code #n)
-                 (env (add-macros add-macro *compiler-macros* (put empty-env 'opt? opt?)))
+                 (env (add-macros add-macro *compiler-macros* empty-env))
                  (full-lst #n) (keep #n))
         (lets/timer verbose?
                     ((env lst (expand-macros lst env))
-                     (lst (if opt? (optimize lst verbose? keep) lst))
+                     (lst (optimize lst verbose? keep))
                      (at code* env ((codegen at lst) env))
                      (epilogue (get env 'epilogue #n))
                      (env (put env 'epilogue #n))
@@ -549,6 +551,6 @@
     (define (attach-prelude lst)
       (append *prelude* lst))
 
-    (define (compile-file filename opt? verbose?)
-      (compile (attach-prelude (file->sexps filename)) opt? #f #f verbose?))
+    (define (compile-file filename verbose?)
+      (compile (attach-prelude (file->sexps filename)) #f #f verbose?))
     ))

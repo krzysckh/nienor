@@ -1,5 +1,5 @@
-;; inefficient memorywise as hell
-(define-struct bunny color x y vx vy next)
+;; inefficient memorywise as hell, as {v,}{x,y} are s16's
+(define-struct bunny vx vy color y x next)
 
 ;; TODO: snprintf (or some format function targetting a string)
 

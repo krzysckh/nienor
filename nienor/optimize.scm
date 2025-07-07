@@ -144,12 +144,28 @@
       (λ (vs)
         (pred (cdr (assoc 'b vs)) (cdr (assoc 'a vs)))))
 
+    ;; TODO: all these rely too heavily on prelude implemntation
+    ;; TODO: and or =
     (define constant-folders
       ;; literal                 match                                              replace
       `(((nigeb uxn-call! add 2) (nigeb (uxn-call! (2) add) ,number?-a ,number?-b) ,(make-folder +))
         ((nigeb uxn-call! sub 2) (nigeb (uxn-call! (2) sub) ,number?-a ,number?-b) ,(make-folder -))
         ((nigeb uxn-call! mul 2) (nigeb (uxn-call! (2) mul) ,number?-a ,number?-b) ,(make-folder *))
         ((nigeb uxn-call! div 2) (nigeb (uxn-call! (2) div) ,number?-a ,number?-b) ,(make-folder (λ (a b) (floor (/ a b)))))
+        ((nigeb uxn-call! () swp _push! byte 0 2 lth)
+         (nigeb (uxn-call! () swp) (_push! byte 0) (uxn-call! (2) lth) ,number?-a ,number?-b)
+         ,(λ (vs)
+            (if ((make-folder <) vs) 1 0)))
+        ((nigeb uxn-call! () swp _push! byte 0 2 gth)
+         (nigeb (uxn-call! () swp) (_push! byte 0) (uxn-call! (2) gth) ,number?-a ,number?-b)
+         ,(λ (vs)
+            (if ((make-folder >) vs) 1 0)))
+        ((if) (if ,number?-a then else) ,(λ (vs) ; compiler-if :P
+                                           (if (eq? 0 (cdr (assoc 'a vs)))
+                                               (cdr (assoc 'else vs))
+                                               (cdr (assoc 'then vs)))))
+        ((>>) (>> ,number?-a ,number?-b) ,(make-folder (λ (b a) (band #xffff (>> a b)))))
+        ((<<) (<< ,number?-a ,number?-b) ,(make-folder (λ (b a) (band #xffff (<< a b)))))
         ))
 
     (define (fold-constants lst)
@@ -157,9 +173,9 @@
 
     ;; keep = list of symbols that are unresolved & are needed to keep as they might be not referenced in code
     (define (optimize lst verbose? keep)
-      (lets ((lst (keep-only-used-defuns lst verbose? keep)) ; delete unused defuns that would eat up space
+      (lets ((lst (fold-constants lst))                      ; fold constants
+             (lst (keep-only-used-defuns lst verbose? keep)) ; delete unused defuns that would eat up space
              (lst (find-tailcalls lst))                      ; add TCO marks
-             (lst (fold-constants lst))                      ; fold constants
              )
         lst))
     ))
