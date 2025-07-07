@@ -207,6 +207,8 @@
                                           (list (tuple 'bytes `(,LIT 0 ,LDZ ,LIT ,n ,SUB ,LIT 2 ,MUL ,(short! LDZ) ,@(if byte? `(,NIP) #n))))))
                                         (else
                                          (loop (cdr l) (+ n 1))))))
+                                    ((null? value)
+                                     (error "syntax-error: cannot push null"))
                                     ((list? value)
                                      (lets ((f (codegen at (list value)))
                                             (at code env (f env)))
