@@ -207,6 +207,10 @@
 (uxn-call! (2 r) jmp)
 
 (define-macro-rule ()
+  (jmp2r!)
+  (uxn-call! (2 r) jmp))
+
+(define-macro-rule ()
   (_reverse)
   ())
 
