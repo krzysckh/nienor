@@ -698,32 +698,32 @@
   (add-thread* . body)
   (_add-thread (λ () . body) *threads*))
 
-(define-vector (draw)
-  (_run-threads *threads* 0))
-
-(define (main)
-  (set-screen-size! 400 400)
-  (set-colors! #x0f00 #x00f0 #x000f)
-  (fill! 0 0 color-1 layer-0)
-
-  (add-thread (λ ()
-                (loopn (i 0 400 1)
-                  (pixel! i i color-2 0 layer-0 0 0))))
-  (add-thread (λ ()
-                (loopn (j 0 400 1)
-                  (pixel! j (- 400 j) color-3 0 layer-0 0 0))))
-
-  (set-draw-handler! draw))
-
-;; (define (counter)
-;;   (loopn (i 0 5 1)
-;;     (print-number* i)))
+;; (define-vector (draw)
+;;   (_run-threads *threads* 0))
 
 ;; (define (main)
-;;   (add-thread counter)
-;;   (add-thread counter)
-;;   (start-thread-controller)
-;;   (exit!))
+;;   (set-screen-size! 400 400)
+;;   (set-colors! #x0f00 #x00f0 #x000f)
+;;   (fill! 0 0 color-1 layer-0)
+
+;;   (add-thread (λ ()
+;;                 (loopn (i 0 400 1)
+;;                   (pixel! i i color-2 0 layer-0 0 0))))
+;;   (add-thread (λ ()
+;;                 (loopn (j 0 400 1)
+;;                   (pixel! j (- 400 j) color-3 0 layer-0 0 0))))
+
+;;   (set-draw-handler! draw))
+
+(define (counter)
+  (loopn (i 0 5 1)
+    (print-number* i)))
+
+(define (main)
+  (add-thread counter)
+  (add-thread counter)
+  (start-thread-controller)
+  (exit!))
 
 ;; (define (main)
 ;;   (add-thread (λ () (* 2 21)))
