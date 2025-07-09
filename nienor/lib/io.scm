@@ -6,7 +6,6 @@
   (if (equ? 1 (band (equ? n 0) (> depth 0)))
       (noop)
       (begin
-        ;; (debug!)
         (_print-number (/ n 10) (+ depth 1)) ; ouch!
         (putchar (+ #\0 (modulo n 10))))))
 
@@ -16,7 +15,11 @@
     (_print-number n 0)
     (putchar #\newline)))
 
-;; TODO: DONT DO IT LIKE THIS THIS GENERATES ONE QUADRILLION GENSYMS
+(define-macro-rule ()
+  (print-number* n)
+  (begin
+    (_print-number n 0)))
+
 (define (puts-static ptr putchar)
   (if (equ? (get8! ptr) 0)
       (noop)
@@ -172,4 +175,5 @@
 (define (error s)
   (eputs s)
   (eputs "\n")
-  (exit 129))
+  (exit 129)
+  (brk!))

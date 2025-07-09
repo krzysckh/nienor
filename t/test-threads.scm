@@ -1,0 +1,432 @@
+(_declare-test
+ output => "0011223344")
+
+(define-struct uxn
+  ticker ; from some arbitrary N to 1, when 0 - vm is finished
+  result
+  wst
+  rst
+  pc
+  zp
+  (wp 8)
+  (rp 8))
+
+(define *ticker-max* (<< 1 9))
+
+(define-struct thread
+  uxn
+  next)
+
+(define (make-thread* uxn)
+  (let ((t (make-thread)))
+    (set-thread-uxn! t uxn)
+    t))
+
+(define (make-uxn* f)
+  (let ((u (make-uxn)))
+    (set-uxn-wst!     u (malloc 256))
+    (set-uxn-rst!     u (malloc 256))
+    (set-uxn-zp!      u (malloc 256))
+    (set-uxn-ticker!  u *ticker-max*)
+    (set-uxn-pc!      u f)
+    u))
+
+(define BRK #x00)
+(define INC #x01)
+(define POP #x02)
+(define NIP #x03)
+(define SWP #x04)
+(define ROT #x05)
+(define DUP #x06)
+(define OVR #x07)
+(define EQU #x08)
+(define NEQ #x09)
+(define GTH #x0a)
+(define LTH #x0b)
+(define JMP #x0c)
+(define JCN #x0d)
+(define JSR #x0e)
+(define STH #x0f)
+(define LDZ #x10)
+(define STZ #x11)
+(define LDR #x12)
+(define STR #x13)
+(define LDA #x14)
+(define STA #x15)
+(define DEI #x16)
+(define DEO #x17)
+(define ADD #x18)
+(define SUB #x19)
+(define MUL #x1a)
+(define DIV #x1b)
+(define AND #x1c)
+(define ORA #x1d)
+(define EOR #x1e)
+(define SFT #x1f)
+(define JCI #x20)
+(define JMI #x40)
+(define JSI #x60)
+(define LIT #x80)
+
+(define-macro-rule ()
+  (keep? e)
+  (band #b10000000 e))
+
+(define-macro-rule ()
+  (return? e)
+  (band #b1000000 e))
+
+(define-macro-rule ()
+  (short? e)
+  (band #b100000 e))
+
+(define (uxn-push uxn val shortp returnp)
+  (let ((target (if returnp (uxn-rst uxn) (uxn-wst uxn)))
+        (f (if returnp uxn-rp uxn-wp))
+        (f! (if returnp set-uxn-rp! set-uxn-wp!)))
+    (if shortp
+        (begin
+          (set! (+ target (f uxn)) val)
+          (f! uxn (+ (f uxn) 2)))
+        (begin
+          (set8! (+ target (f uxn)) val)
+          (f! uxn (+ (f uxn) 1))))))
+
+(define (uxn-pop uxn shortp returnp keepp)
+  (let ((target (if returnp (uxn-rst uxn) (uxn-wst uxn)))
+        (f (if returnp uxn-rp uxn-wp))
+        (f! (if returnp set-uxn-rp! set-uxn-wp!)))
+    (if shortp
+        (begin
+          (when (<= (f uxn) 1)
+            (error "stack underflow in pop"))
+          (if keepp
+              (get! (- (+ target (f uxn)) 2))
+              (begin
+                (f! uxn (- (f uxn) 2))
+                (get! (+ target (f uxn))))))
+        (begin
+          (when (= (f uxn) 0)
+            (error "stack underflow in pop2"))
+          (if keepp
+              (get! (- (+ target (f uxn)) 1))
+              (begin
+                (f! uxn (- (f uxn) 1))
+                (get8! (+ target (f uxn)))))))))
+
+(define-macro-rule ()
+  (unext uxn)
+  (begin
+    (set-uxn-pc! uxn (+ (uxn-pc uxn) 1))
+    (uxn-eval uxn)))
+
+(define (_print-stack sp siz)
+  (when (> siz 0)
+    (print-number* (get8! sp))
+    (putchar #\space)
+    (_print-stack (+ sp 1) (- siz 1))))
+
+(define-macro-rule ()
+  (print-stack sp siz)
+  (begin
+    (_print-stack sp siz)
+    (puts "| size=")
+    (print-number siz)))
+
+(define (print-stacks uxn)
+  (puts "WST: ")
+  (print-stack (uxn-wst uxn) (uxn-wp uxn))
+  (puts "RST: ")
+  (print-stack (uxn-rst uxn) (uxn-rp uxn)))
+
+(define (uxn-eval uxn)
+  (cond
+   ((= (uxn-ticker uxn) 0)
+    (uxn-result uxn))
+   ((= (uxn-ticker uxn) 1)
+    (set-uxn-ticker! uxn *ticker-max*)
+    0)
+   (else
+    (let* ((opcode (get8! (uxn-pc uxn)))
+           (opc (band #b00011111 opcode))
+           (keepp (keep? opcode))
+           (shortp (short? opcode))
+           (returnp (return? opcode)))
+      (when (not (= opc DEO))
+        (set-uxn-ticker! uxn (- (uxn-ticker uxn) 1)))
+      (cond
+       ((= opc ROT)
+        (let* ((c (uxn-pop uxn shortp returnp 0))
+               (b (uxn-pop uxn shortp returnp 0))
+               (a (uxn-pop uxn shortp returnp 0)))
+          (when keepp
+            (uxn-push uxn a shortp returnp)
+            (uxn-push uxn b shortp returnp)
+            (uxn-push uxn c shortp returnp))
+          (uxn-push uxn b shortp returnp)
+          (uxn-push uxn c shortp returnp)
+          (uxn-push uxn a shortp returnp)
+          (unext uxn)))
+       ((= opc SFT)
+        (let* ((a (uxn-pop uxn shortp returnp 0))
+               (s8 (uxn-pop uxn 0 returnp 0)))
+          (short->byte s8)
+          (if shortp a (short->byte a))
+          (if shortp
+              (uxn-call! (2) sft)
+              (uxn-call! () sft))
+          (when (not shortp)
+            (pus! 0)
+            (uxn-call! () swp))
+          (with-locals! (res)
+            ;; (print-number res)
+            (uxn-push uxn res shortp returnp))
+          (when keepp
+            (error "SFTk")
+            (uxn-push uxn a shortp returnp)
+            (uxn-push uxn s8 0 returnp))
+          (unext uxn)))
+       ((= opc DUP)
+        (let ((v (uxn-pop uxn shortp returnp keepp)))
+          (uxn-push uxn v shortp returnp)
+          (uxn-push uxn v shortp returnp))
+        (unext uxn))
+       ((= opc INC)
+        (uxn-push uxn (+ 1 (uxn-pop uxn shortp returnp keepp)) shortp returnp)
+        (unext uxn))
+       ((= opc DIV)
+        (let* ((b (uxn-pop uxn shortp returnp 0))
+               (a (uxn-pop uxn shortp returnp 0)))
+          (uxn-push uxn (/ a b) shortp returnp)
+          (when keepp
+            (error "divk")
+            (uxn-push uxn a shortp returnp)
+            (uxn-push uxn b shortp returnp))
+          (unext uxn)))
+       ((= opc GTH)
+        (let* ((b (uxn-pop uxn shortp returnp 0))
+               (a (uxn-pop uxn shortp returnp 0)))
+          (when keepp
+            (uxn-push uxn a shortp returnp)
+            (uxn-push uxn b shortp returnp))
+          (uxn-push uxn (> a b) 0 returnp)
+          (unext uxn)))
+       ((= opc LTH)
+        (if keepp
+            (error "unimplemented LTHk")
+            (uxn-push uxn (> (uxn-pop uxn shortp returnp 0) (uxn-pop uxn shortp returnp 0)) 0 returnp))
+        (unext uxn))
+       ((= opc ADD)
+        (if keepp
+            (error "unimplemented ADDk")
+            (uxn-push uxn (+ (uxn-pop uxn shortp returnp 0) (uxn-pop uxn shortp returnp 0)) shortp returnp))
+        (unext uxn))
+       ((= opc EQU)
+        (let* ((a (uxn-pop uxn shortp returnp 0))
+               (b (uxn-pop uxn shortp returnp 0)))
+          (if keepp
+              (error "unimplemented EQUk")
+              (uxn-push uxn (= a b) 0 returnp))
+          (unext uxn)))
+       ((= opc MUL)
+        (if keepp
+            (error "unimplemented MULk")
+            (uxn-push uxn (* (uxn-pop uxn shortp returnp 0) (uxn-pop uxn shortp returnp 0)) shortp returnp))
+        (unext uxn))
+       ((= opc ORA)
+        (if keepp
+            (error "unimplemented ORAk")
+            (uxn-push uxn (bior (uxn-pop uxn shortp returnp 0) (uxn-pop uxn shortp returnp 0)) shortp returnp))
+        (unext uxn))
+       ((= opc AND)
+        (if keepp
+            (error "unimplemented ANDk")
+            (uxn-push uxn (band (uxn-pop uxn shortp returnp 0) (uxn-pop uxn shortp returnp 0)) shortp returnp))
+        (unext uxn))
+       ((= opc EOR)
+        (if keepp
+            (error "unimplemented EORk")
+            (uxn-push uxn (bxor (uxn-pop uxn shortp returnp 0) (uxn-pop uxn shortp returnp 0)) shortp returnp))
+        (unext uxn))
+       ((= opc SUB)
+        (if keepp
+            (error "unimplemented SUBk")
+            (let ((b (uxn-pop uxn shortp returnp 0)))
+              (uxn-push uxn (- (uxn-pop uxn shortp returnp 0) b) shortp returnp)))
+        (unext uxn))
+       ((= opc STA)
+        (let* ((pt (uxn-pop uxn 1 returnp 0))
+               (v (uxn-pop uxn shortp returnp 0)))
+          (when (< pt 256)
+            (error "TODO: uxn-eval: STA tried to set the zero page"))
+          (if shortp
+              (set! pt v)
+              (set8! pt v))
+          ;; TODO: faster keepp 2 electric boogaroo
+          (when keepp
+            (uxn-push uxn v shortp returnp)
+            (uxn-push uxn pt 1 returnp))
+          (unext uxn)))
+       ((= opc STZ)
+        (let* ((pt (uxn-pop uxn 0 returnp 0))
+               (v (uxn-pop uxn shortp returnp 0)))
+          (if shortp
+              (set! (+ (uxn-zp uxn) pt) v)
+              (set8! (+ (uxn-zp uxn) pt) v))
+          ;; TODO: faster keepp - don't pop & push, just peek
+          (when keepp
+            (uxn-push uxn v shortp returnp)
+            (uxn-push uxn pt 0 returnp))
+          (unext uxn)))
+       ((= opc LDZ)
+        (let* ((pt (uxn-pop uxn 0 0 keepp))
+               (v (if shortp (get! (+ (uxn-zp uxn) pt)) (get8! (+ (uxn-zp uxn) pt)))))
+          (uxn-push uxn v shortp returnp)
+          (unext uxn)))
+       ((= opc SWP)
+        (if keepp
+            (error "unimplemented SWPk")
+            (let* ((a (uxn-pop uxn shortp returnp keepp))
+                   (b (uxn-pop uxn shortp returnp keepp)))
+              (uxn-push uxn a shortp returnp)
+              (uxn-push uxn b shortp returnp)
+              (unext uxn))))
+       ((= opc JSR)
+        (if (and shortp (and returnp (= (uxn-rp uxn) 0))) ; subr return
+            (let ((res (if (>= (uxn-wp uxn) 2)
+                           (uxn-pop uxn 1 0 0)
+                           0)))
+              (set-uxn-ticker! uxn 0)
+              (set-uxn-result! uxn res)
+              res)
+            (let ((v (uxn-pop uxn shortp returnp keepp)))
+              (uxn-push uxn (+ (uxn-pc uxn) 1) 1 1)
+              (if shortp
+                  (set-uxn-pc! uxn v)
+                  (set-uxn-pc! uxn (if (negative? v) (- (uxn-pc uxn) v) (+ (uxn-pc uxn) v))))
+              (uxn-eval uxn))))
+       ((= opc JMP)
+        (if (and shortp (and returnp (= (uxn-rp uxn) 0))) ; subr return
+            (let ((res (if (>= (uxn-wp uxn) 2)
+                           (uxn-pop uxn 1 0 0)
+                           0)))
+              (set-uxn-ticker! uxn 0)
+              (set-uxn-result! uxn res)
+              res)
+            (let ((v (uxn-pop uxn shortp returnp keepp)))
+              (if shortp
+                  (set-uxn-pc! uxn v)
+                  (set-uxn-pc! uxn (if (negative? v) (- (uxn-pc uxn) v) (+ (uxn-pc uxn) v))))
+              (uxn-eval uxn))))
+       ((= opc JCN)
+        (if keepp
+            (error "unimplemented JCNk")
+            (let* ((pt (uxn-pop uxn shortp returnp keepp))
+                   (v (uxn-pop uxn 0 returnp 0)))
+              (if shortp
+                  (set-uxn-pc! uxn (if v pt (+ (uxn-pc uxn) 1)))
+                  (set-uxn-pc! uxn (if v (if (negative? pt) (- (uxn-pc uxn) pt) (+ (uxn-pc uxn) pt)) (+ (uxn-pc uxn) 1))))
+              (uxn-eval uxn))))
+       ((= opc LDA)
+        (let ((p (uxn-pop uxn 1 returnp keepp)))
+          (uxn-push uxn (if shortp (get! p) (get8! p)) shortp returnp)
+          (unext uxn)))
+       ((= opc POP)
+        (uxn-pop uxn shortp returnp keepp)
+        (if shortp
+            (uxn-call! (2) pop)
+            (uxn-call! () pop))
+        (unext uxn))
+       ((= opc NIP)
+        (if keepp
+            (error "unimplemented NIPk")
+            (let ((a (uxn-pop uxn shortp returnp keepp))
+                  (b (uxn-pop uxn shortp returnp keepp)))
+              (uxn-push uxn a shortp returnp)
+              (unext uxn))))
+       ((= opc DEO)
+        (if keepp
+            (error "unimplemented DEOk")
+            (begin
+              (let* ((dev (uxn-pop uxn 0 returnp keepp))
+                     (val (uxn-pop uxn shortp returnp keepp)))
+                val (when (not shortp) (uxn-call! () nip))
+                dev (uxn-call! () nip)
+                (if shortp (deo2!) (deo!))
+                (unext uxn)))))
+       ((and (= opc 0) (= (band #b11100000 opcode) 0)) 0) ; BRK
+       ((= opc 0)
+        (let ((val (if shortp (get! (+ (uxn-pc uxn) 1)) (get8! (+ (uxn-pc uxn) 1)))))
+          (uxn-push uxn val shortp (return? opcode))
+          (if shortp
+              (set-uxn-pc! uxn (+ (uxn-pc uxn) 3))
+              (set-uxn-pc! uxn (+ (uxn-pc uxn) 2)))
+          (uxn-eval uxn)))
+       (else
+        (puts "opcode: ") (print-number opc)
+        (error "unimplemented opcode"))
+       )))))
+
+(defvar *threads*)
+
+(define (_run-threads thr n)
+  (if thr
+      (if (uxn-ticker (thread-uxn thr))
+          (begin
+            (uxn-eval (thread-uxn thr))
+            (_run-threads (thread-next thr) (+ n 1)))
+          (_run-threads (thread-next thr) n))
+      n))
+
+(define (start-thread-controller)
+  (when *threads*
+    (when (> (_run-threads *threads* 0) 0)
+      (start-thread-controller))))
+
+(define (_add-thread thunk cur)
+  (if *threads*
+      (if (thread-next cur)
+          (_add-thread thunk (thread-next cur))
+          (set-thread-next! cur (make-thread* (make-uxn* thunk))))
+      (set! *threads* (make-thread* (make-uxn* thunk)))))
+
+(define-macro-rule ()
+  (add-thread thunk)
+  (_add-thread thunk *threads*))
+
+(define-macro-rule ()
+  (add-thread* . body)
+  (_add-thread (λ () . body) *threads*))
+
+;; (define-vector (draw)
+;;   (_run-threads *threads* 0))
+
+;; (define (main)
+;;   (set-screen-size! 400 400)
+;;   (set-colors! #x0f00 #x00f0 #x000f)
+;;   (fill! 0 0 color-1 layer-0)
+
+;;   (add-thread (λ ()
+;;                 (loopn (i 0 400 1)
+;;                   (pixel! i i color-2 0 layer-0 0 0))))
+;;   (add-thread (λ ()
+;;                 (loopn (j 0 400 1)
+;;                   (pixel! j (- 400 j) color-3 0 layer-0 0 0))))
+
+;;   (set-draw-handler! draw))
+
+(define (counter)
+  (loopn (i 0 5 1)
+    (print-number* i)))
+
+(define (main)
+  (add-thread counter)
+  (add-thread counter)
+  (start-thread-controller)
+  (exit!))
+
+;; (define (main)
+;;   (add-thread (λ () (* 2 21)))
+;;   (start-thread-controller)
+;;   (print-number (uxn-result (thread-uxn *threads*)))
+;;   (exit!))
