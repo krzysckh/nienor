@@ -371,7 +371,7 @@
                                                   (tuple 'unresolved-symbol 'malloc resolve1)
                                                   (tuple 'unresolved-symbol name resolve2))))
                              ))))
-                      ((_tailcall! name args n-locals)
+                      ((_tailcall-fast! name args n-locals)
                        (lets ((f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) args))))
                               (at code env* (f env))
                               (resolve (λ (loc) `(;; 1. free all locals that are not function arguments
@@ -397,8 +397,18 @@
                               (length (+ 20 (* (len args) 6))))
                          (loop rest (+ at length) env*
                                (append acc code (with-comment
-                                                 `(tailcall! ,name)
+                                                 `(tailcall-fast! ,name)
                                                  (tuple 'unresolved-symbol (name->skip-prologue-name name) resolve))))))
+                      ((_tailcall! func args n-locals) ; call func & remove frame
+                       (lets ((f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) (append (reverse args) (list func))))))
+                              (at code env* (f env)))
+                         (loop rest (+ at 10) env*
+                               (append acc code (with-comment
+                                                  `(tailcall! ,func)
+                                                  (tuple 'bytes `(,LIT 0 ,LDZ         ;                       / load local ptr from 0x0
+                                                                  ,LIT ,n-locals ,SUB ; same as tailcall-fast | subtract the amount of freed locals
+                                                                  ,LIT 0 ,STZ         ;                       \ save new local ptr to 0x0
+                                                                  ,(short! JMP))))))))
                       ((_get! addr)
                        (lets ((f (codegen at `((_push! _ ,addr) (uxn-call! (2) lda))))
                               (at code env (f env)))

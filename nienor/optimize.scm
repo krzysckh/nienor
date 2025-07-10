@@ -103,8 +103,9 @@
        (else
         (cons (car* lst) (but-last (cdr* lst))))))
 
-    (define (maybe-tailcall defun)
+    (define (maybe-tailcall defun defun?)
       (let ((name (cadr defun))
+            (nargs (len (caddr defun)))
             (code (cadddr defun)))
         `(_defun
           ,name ,(caddr defun)
@@ -122,21 +123,35 @@
                  `(_with-locals! ,(cadr e) (,@(but-last (caddr e)) ,(loop (last (caddr e) #n) (+ n-locals (len (cadr e)))))))
                 ((eq? (car* e) 'if)
                  `(if ,(cadr e) ,(loop (caddr e) n-locals) ,(loop (cadddr e) n-locals)))
+                ((eq? (car* e) name)
+                 `(_tailcall-fast! ,(car e) ,(cdr e) ,n-locals))
+                ((and (list? e) (if (symbol? (car e)) (defun? (car e)) #t))
+                 `(_tailcall! ,(car e) ,(cdr e) ,(+ nargs n-locals)))
                 (else
-                 (if (eq? (car* e) name)
-                     `(_tailcall! ,name ,(cdr e) ,n-locals)
-                     e)))))))))
+                 e))))))))
+
+    (define (make-defun? lst)
+      (let ((defuns
+              (map
+               cadr
+               (filter
+                (λ (l) (or (eq? (car* (car l)) '_defun)
+                           (eq? (car* (car l)) '_defun-vector)))
+                lst))))
+        (λ (sym)
+          (has? defuns sym))))
 
     (define (find-tailcalls lst)
-      (let loop ((lst lst) (acc #n))
-        (let ((exp (car* lst)))
-          (cond
-           ((null? lst) acc)
-           ((eq? (car* exp) '_defun)
-            (let ((mt (maybe-tailcall exp)))
-              (loop (cdr lst) (append acc (list mt)))))
-           (else
-            (loop (cdr lst) (append acc (list exp))))))))
+      (let ((defun? (make-defun? lst)))
+        (let loop ((lst lst) (acc #n))
+          (let ((exp (car* lst)))
+            (cond
+             ((null? lst) acc)
+             ((eq? (car* exp) '_defun)
+              (let ((mt (maybe-tailcall exp defun?)))
+                (loop (cdr lst) (append acc (list mt)))))
+             (else
+              (loop (cdr lst) (append acc (list exp)))))))))
 
     (define number?-a (make-pred number? 'a))
     (define number?-b (make-pred number? 'b))
@@ -175,7 +190,7 @@
     (define (optimize lst verbose? keep)
       (lets ((lst (fold-constants lst))                      ; fold constants
              (lst (keep-only-used-defuns lst verbose? keep)) ; delete unused defuns that would eat up space
-             (lst (find-tailcalls lst))                      ; add TCO marks
+             (lst (find-tailcalls lst))                      ; add TCO/TCE marks
              )
         lst))
     ))
