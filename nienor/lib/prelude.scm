@@ -333,11 +333,9 @@
   (= a b)
   (equ? a b))
 
-;; byte equal
-(define (eq? a b)
-  (pus! a)
-  (pus! b)
-  (uxn-call! () equ))
+(define-macro-rule ()
+  (eq? a b)
+  (equ? a b))
 
 (define-macro-rule ()
   (get! addr)
