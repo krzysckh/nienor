@@ -12,8 +12,6 @@
 (define screen-width 400)
 (define screen-height 300)
 
-(defvar *hello* "hello world" 0)
-
 ;; TODO: fix this syntax for small shorts
 (defvar x  0 10)
 (defvar y  0 10)
@@ -23,22 +21,21 @@
 (define-vector (draw)
   (let ((ax (- x (modulo x 8)))
         (ay (- y (modulo y 8))))
-    (fill-rect! *texture* color-2 ax ay (+ ax (+ 1 text-width)) (+ ay 16) layer-1)) ; patch up old hello world
+    (fill-rect! *texture* color-2 ax ay (+ ax (+ 1 text-width)) (+ ay 16) layer-1) ; patch up old hello world
 
-  (when (bior (> (+ x text-width) screen-width) (band (negative? vx) (equ? x 0)))
-    (set! vx (signed* vx (negative! 1))))
+    (when (bior (> (+ x text-width) screen-width) (band (negative? vx) (equ? x 0)))
+      (set! vx (signed* vx (negative! 1))))
 
-  (when (bior (> (+ y 8) screen-height) (band (negative? vy) (equ? y 0)))
-    (set! vy (signed* vy (negative! 1))))
+    (when (bior (> (+ y 8) screen-height) (band (negative? vy) (equ? y 0)))
+      (set! vy (signed* vy (negative! 1))))
 
-  (set! x (signed-max2 0 (signed+ x vx)))
-  (set! y (signed-max2 0 (signed+ y vy)))
+    (set! x (signed-max2 0 (signed+ x vx)))
+    (set! y (signed-max2 0 (signed+ y vy)))
 
-  (vputs (addrof *hello*) x y #b00001010 layer-1))
+    (vputs "hello world" x y #b00001010 layer-1)))
 
 (define (main)
   (set-colors! #x05ff #x00ff #x0dff)
   (set-draw-handler! draw)
-  (set-screen-width! screen-width)
-  (set-screen-height! screen-height)
+  (set-screen-size! screen-width screen-height)
   (fill-rect! *texture* color-2 0 0 400 300 layer-0))
