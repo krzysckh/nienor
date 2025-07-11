@@ -10,11 +10,13 @@
 (define command-line-rules
   (cl-rules
    `((help   "-h" "--help")
-     (output "-o" "--output" has-arg comment "target file"        default "a.out")
-     (emacro "-m" "--macros"         comment "only expand macros")
-     (dump   "-D" "--dump"           comment "compile & disassemble to uxntal")
-     (V      "-V" "--verbose"        comment "be verbose")
-     (q      "-q" "--quiet"          comment "be quiet")
+     (output "-o" "--output"            has-arg comment "target file"               default "a.out")
+     (emacro "-m" "--expand-macros"             comment "only expand and dump macros")
+     (dump   "-D" "--dump"                      comment "compile & disassemble to uxntal")
+     (V      "-V" "--verbose"                   comment "be verbose")
+     (q      "-q" "--quiet"                     comment "be quiet")
+     (s      "-s" "--dump-symbol-table"         comment "dump symbol table to file")
+     (sf     "-S" "--symbol-table-file" has-arg comment "set symbol table filename" default "a.out.sym")
      )))
 
 (define (print-used-labels env)
@@ -22,6 +24,20 @@
   (ff-map
    (λ (k v) (format stdout "  ~a: |~4,'0x~%" k v))
    (get env 'labels empty)))
+
+;; TODO: constants and labels are stored in the same ff so this list is a bit wrong
+(define (dump-symbol-table env out)
+  (list->file
+   (ff-fold
+    (λ (a k v)
+      (append
+       a
+       (list (>> (band #xff00 v) 8) (band #xff v))
+       (string->bytes (symbol->string k))
+       '(0)))
+    '()
+    (get env 'labels empty))
+   out))
 
 (λ (args)
   (process-arguments
@@ -35,8 +51,12 @@
      (let* ((out (get opt 'output #f))
             (mac (get opt 'emacro #f))
             (np (get opt 'np #f))
-            (v (get opt 'V #f))
+            (verbose? (get opt 'V #f))
+            (symt (get opt 's #f))
+            (quiet? (get opt 'q #f))
             (dump (get opt 'dump #f)))
+       (when (and quiet? verbose?)
+         (error "Cannot specify both --quiet and --verbose. You lose."))
        (cond
         ((= (length extra) 1)
          (cond
@@ -53,9 +73,9 @@
              (when (not (eq? f stdout))
                (close-port f))))
           (else
-           (lets ((env data (n/compile-file (car extra) v))
+           (lets ((env data (n/compile-file (car extra) verbose?))
                   (n-labels (ff-fold (λ (a k v) (+ a 1)) 0 (get env 'labels empty))))
-             (unless (get opt 'q #f)
+             (unless quiet?
                (format stdout "Assembled ~a in ~aB (~,2f% used), ~a labels~%"
                        out
                        (format-number-base2 (len data))
@@ -64,7 +84,10 @@
              ;; TODO: delete unused labels so i can show them here
              ;; (when v
              ;;   (print-used-labels env))
-             (list->file data out))))
+             (list->file data out)
+             (when symt
+               (dump-symbol-table env (get opt 'sf 'bug)))
+             )))
          0)
         ((> (length extra) 1) (error "Too many files."))
         (else
