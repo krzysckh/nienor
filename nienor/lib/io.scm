@@ -48,6 +48,7 @@
 (define-simple-deo2 set-draw-handler! #x20)
 (define-simple-deo2 set-mouse-handler! #x90)
 (define-simple-deo2 set-key-handler! #x80)
+(define-simple-deo2 set-console-handler! #x10)
 
 (define-simple-deo2 set-color-r! #x08)
 (define-simple-deo2 set-color-g! #x0a)
@@ -97,13 +98,22 @@
 (define (sprite! x y sprite bpp2? layer fx fy color)
   (pick-pixel! x y)
   (pick-sprite! sprite)
-
-  (bior* bpp2? layer fx fy color)
-
-  (with-locals! (mask)
+  (let ((mask (bior* bpp2? layer fx fy color)))
     (short->byte mask)
     (pus! #x2f)
     (deo!)))
+
+(define (console-read)
+  (pus! #x12)
+  (dei!)
+  (pus! 0)
+  (uxn-call! () swp))
+
+(define (console-type)
+  (pus! #x17)
+  (dei!)
+  (pus! 0)
+  (uxn-call! () swp))
 
 (define (mouse-x)
   (pus! #x92)

@@ -48,7 +48,8 @@
 
 (define (print-outcome v)
   (lets ((possible got v))
-    (format stdout "~%~a tests out of ~a ran successfully~%" got possible)))
+    (format stdout "~%~a tests out of ~a ran successfully~%" got possible)
+    (halt (if (= possible got) 0 42))))
 
 (system '("make" "bin/nienor"))
 
