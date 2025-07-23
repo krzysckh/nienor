@@ -1,0 +1,29 @@
+name: build and test nienor
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Download dependencies
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y make clang
+      - name: Install owl lisp
+        shell: bash
+        run: |
+          git clone https://gitlab.com/owl-lisp/owl
+          ( cd owl && make && sudo make install )
+      - name: Install uxn
+        shell: bash
+        run: |
+          wget https://git.sr.ht/~rabbits/uxn11/blob/main/src/uxncli.c
+          cc -O2 -o uxncli uxncli.c
+          sudo cp uxncli /bin/
+      - name: Run tests
+        shell: bash
+        run: |
+          UXNEMU=uxncli make test CC=clang

@@ -6,7 +6,7 @@
 
 (define *self* "run-tests.scm")
 (define *tmp-rom-location* "/tmp/test.rom")
-(define *uxnemu-implementation* "uxn11")
+(define *uxnemu-implementation* (or (sys/getenv "UXNEMU") "uxn11"))
 
 (define files
   (map
