@@ -17,7 +17,13 @@ jobs:
         run: |
           git clone https://gitlab.com/owl-lisp/owl
           ( cd owl && make && sudo make install )
-      - name: Build lager
+      - name: Install uxn
         shell: bash
         run: |
-          make test CC=clang
+          wget https://git.sr.ht/~rabbits/uxn11/blob/main/src/uxncli.c
+          cc -O2 -o uxncli uxncli.c
+          sudo cp uxncli /bin/
+      - name: Run tests
+        shell: bash
+        run: |
+          UXNEMU=uxncli make test CC=clang
