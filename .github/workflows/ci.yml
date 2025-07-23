@@ -1,0 +1,23 @@
+name: build and test nienor
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Download dependencies
+        shell: bash
+        run: |
+          sudo apt update
+          sudo apt install -y make clang
+      - name: Install owl lisp
+        shell: bash
+        run: |
+          git clone https://gitlab.com/owl-lisp/owl
+          ( cd owl && make && sudo make install )
+      - name: Build lager
+        shell: bash
+        run: |
+          make test CC=clang
