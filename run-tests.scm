@@ -30,8 +30,11 @@
       0))
 
 (define (expect what)
-  (lets ((r w (popen (format #f "~a ~a 2>/dev/null" *uxnemu-implementation* *tmp-rom-location*))))
-    (if (equal? what (bytes->string (force-ll (port->byte-stream r)))) 1 0)))
+  (lets ((r w (popen (format #f "~a ~a ARG 2>/dev/null" *uxnemu-implementation* *tmp-rom-location*)))
+         (res (bytes->string (force-ll (port->byte-stream r)))))
+    (if (equal? what res)
+        1
+        0)))
 
 (define (compile-and-expect filename what)
   (if (= 1 (compile filename))

@@ -187,3 +187,40 @@
   (eputs "\n")
   (exit 129)
   (brk!))
+
+
+(defvar *current-command-line-arg*)
+(defvar *command-line*)
+(defvar *command-line-cont*)
+
+(define-vector (command-line-args-vec)
+  (let ((type (console-type)))
+    (cond
+     ((= type 2)
+      (set! *current-command-line-arg* (cons (console-read) *current-command-line-arg*)))
+     ((bior (= type 3) (= type 4))
+      (set! *command-line* (cons (reverse *current-command-line-arg*) *command-line*))
+      (free-list *current-command-line-arg*)
+      (set! *current-command-line-arg* nil))
+     (else
+      (print "type:")
+      (print-number type)
+      (error "WTF (whats that functionality)")))
+    (when (= type 4)
+      (let ((cl (l/ reverse (map list->string *command-line*))))
+        (for-each free-list *command-line*)
+        (free-list *command-line*)
+        (set! *command-line* cl)
+        (set-console-handler! nil)
+        (when *command-line-cont*
+          (*command-line-cont* *command-line*))))))
+
+(define-macro-rule ()
+  (has-command-line-arguments?)
+  (= (console-type) 1))
+
+(define-macro-rule ()
+  (call-with-command-line f)
+  (begin
+    (set! *command-line-cont* f)
+    (set-console-handler! command-line-args-vec)))

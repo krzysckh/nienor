@@ -199,7 +199,7 @@
 ;; it (as the name suggests) does what begin would do backwards
 ;; that's because the compiler thinks it's a function, and tries to (_push!)
 ;; the results of functions that are arguments... in reverse order
-;; that's why we have a _reverse macro, which does a nigeb->begin transformation
+;; that's why we have a __m_reverse macro, which does a nigeb->begin transformation
 ;; (reverses arguments) - now we can create a begin !
 
 ;; this is a function that just returns
@@ -211,24 +211,24 @@
   (uxn-call! (2 r) jmp))
 
 (define-macro-rule ()
-  (_reverse)
+  (__m_reverse)
   ())
 
 (define-macro-rule (_)
-  (_reverse a . b)
-  (_reverse (_ . b) a))
+  (__m_reverse a . b)
+  (__m_reverse (_ . b) a))
 
 (define-macro-rule (_)
-  (_reverse (_) . a)
+  (__m_reverse (_) . a)
   a)
 
 (define-macro-rule (_)
-  (_reverse (_ b . c) . a)
-  (_reverse (_ . c) b . a))
+  (__m_reverse (_ b . c) . a)
+  (__m_reverse (_ . c) b . a))
 
 (define-macro-rule (_)
   (begin . exp)
-  (nigeb . (_reverse . exp)))
+  (nigeb . (__m_reverse . exp)))
 
 (define-macro-rule ()
   (debug!)
@@ -422,7 +422,7 @@
   (let (_ . keys) (_ . values) () . body)
   (begin
     (nigeb . values)
-    (with-locals! (_reverse . keys) . body)))
+    (with-locals! (__m_reverse . keys) . body)))
 
 (define (modulo a mod)
   (- a (* (/ a mod) mod)))
@@ -665,6 +665,7 @@
   (_let-loop name (_ key . keys) (_ value . vals) (_ . rest) . body))
 
 ;; TODO: this grows the return stack — it doesn't tailcall D:
+;; TODO: this doesn't return the right value
 (define-macro-rule (_)
   (_let-loop name (_ . keys) (_ . vals) (_) . body)
   (begin
@@ -676,3 +677,63 @@
 (define-macro-rule (_)
   (let loop ((key val) . rest) . body)
   (_let-loop loop (_ key) (_ val) (_ . rest) . body))
+
+(define (free-list l)
+  (when l
+    (if (cdr l)
+        (free-list (cdr l))
+        (free l))))
+
+(define (_length l n)
+  (if l
+      (_length (cdr l) (+ n 1))
+      n))
+
+(define-macro-rule ()
+  (length l)
+  (_length l 0))
+
+(define-macro-rule ()
+  (len l)
+  (_length l 0))
+
+(define (_list->string l p)
+  (when l
+    (set8! p (car l))
+    (_list->string (cdr l) (+ p 1))))
+
+(define (list->string l)
+  (let ((p (malloc (+ (len l) 1))))
+    (_list->string l p)
+    p))
+
+(define (set-car! cell what)
+  (set! cell what))
+
+(define (set-cdr! cell what)
+  (set! (+ cell 2) what))
+
+(define (_reverse l acc)
+  (if l
+      (_reverse (cdr l) (cons (car l) acc))
+      acc))
+
+(define-macro-rule ()
+  (reverse l)
+  (_reverse l nil))
+
+(define (for-each f lst)
+  (when lst
+    (f (car lst))
+    (for-each f (cdr lst))))
+
+(define (map f lst)
+  (if lst
+      (cons (f (car lst)) (map f (cdr lst)))
+      nil))
+
+(define-macro-rule ()
+  (l/ f lst)
+  (let* ((l lst) (v (f l)))
+    (free-list l)
+    v))
