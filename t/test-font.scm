@@ -12,11 +12,10 @@
 (define screen-width 400)
 (define screen-height 300)
 
-;; TODO: fix this syntax for small shorts
-(defvar x  0 10)
-(defvar y  0 10)
-(defvar vx 0 4)
-(defvar vy 0 4)
+(defvar x  10)
+(defvar y  10)
+(defvar vx 4)
+(defvar vy 4)
 
 (define-vector (draw)
   (let ((ax (- x (modulo x 8)))

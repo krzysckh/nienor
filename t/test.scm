@@ -22,7 +22,7 @@
  #b00111100
  #b00000000)
 
-(defvar mouse 0 0)
+(defvar mouse 0)
 (defvar *state*)
 
 (define-vector (draw-handler)

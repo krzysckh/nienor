@@ -1,11 +1,8 @@
 (_declare-test
  output => "ok\nok\nok\nok\n")
 
-(defvar *ok* "ok\n" 0)
-(defvar *bad* "bad\n" 0)
-
 (define (test res ok)
-  (puts (if (equ? res ok) (addrof *ok*) (addrof *bad*))))
+  (puts (if (equ? res ok) "ok\n" "bad\n")))
 
 (define (main)
   (test (<< 2137 2) 8548)

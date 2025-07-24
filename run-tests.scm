@@ -4,7 +4,6 @@
  (prefix (nienor common) N/)
  (prefix (owl sys) sys/))
 
-(define *self* "run-tests.scm")
 (define *tmp-rom-location* "/tmp/test.rom")
 (define *uxnemu-implementation* (or (sys/getenv "UXNEMU") "uxn11"))
 
@@ -14,10 +13,8 @@
    (map
     (H str "t/")
     (filter
-     (B not (C equal? *self*))
-     (filter
-      (string->regex "m/\\.scm$/")
-      (sys/dir->list "t"))))))
+     (string->regex "m/\\.scm$/")
+     (sys/dir->list "t")))))
 
 (define (output-exp->ff exp)
   (let loop ((ff empty) (exp (cdr exp)))
@@ -41,26 +38,26 @@
       (+ 1 (expect what))
       1))
 
-;; filename → (values possible-tests passed-tests)
+;; filename → (values filename possible-tests passed-tests)
 (define (run-test filename)
   (if-lets ((data (assoc '_declare-test (N/file->sexps filename)))
             (ff (output-exp->ff data)))
     (values 2 (compile-and-expect filename (get ff 'output "")))
     (values 1 (compile filename))))
 
-(define (print-outcome v)
-  (lets ((possible got v))
-    (format stdout "~%~a tests out of ~a ran successfully~%" got possible)
-    (halt (if (= possible got) 0 42))))
+(define (print-outcome failed possible got)
+  (format stdout "~%~a tests out of ~a ran successfully~%" got possible)
+  (when (not (null? failed))
+    (format stdout "failed: ~a~%" failed))
+  (halt (if (= possible got) 0 42)))
 
 (system '("make" "bin/nienor"))
 
-(print-outcome
- (fold
-  (λ (a b)
-    (lets ((max cur a)
-           (possible got (run-test b)))
-      (format stdout "~a: ~a/~a~%" b got possible)
-      (cons (+ max possible) (+ cur got))))
-  (cons 0 0)
-  files))
+(let loop ((files files) (failed #n) (max 0) (cur 0))
+  (if (null? files)
+      (print-outcome failed max cur)
+      (lets ((possible got (run-test (car files))))
+        (format stdout "~a: ~a/~a~%" (car files) got possible)
+        (loop (cdr files)
+              (if (= possible got) failed (cons (car files) failed))
+              (+ max possible) (+ cur got)))))

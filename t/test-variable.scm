@@ -8,9 +8,9 @@
 ;; and not a label nor a constant would be
 ;; ^-- this is done. this test got restructured to test exactly that.
 
-(defvar *variable-a* 8 89)
-(defvar *variable-b* 0 0)
-(defvar *variable-c* 0 42)
+(defvar *variable-a* 2137)
+(defvar *variable-b* 21)
+(defvar *variable-c* 42)
 (alloc! *not-a-variable* 0 33)
 
 (define (main)

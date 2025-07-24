@@ -113,14 +113,14 @@
   (_alloc! name vals))
 
 (define-macro-rule ()
-  (defvar name . vs)
+  (defvar name value)
   (flatten!
-   (alloc! name . vs)
+   (alloc! name (>> value 8) (band value #xff))
    (_declare-var! name)))
 
 (define-macro-rule ()
   (defvar name)
-  (defvar name 0 0))
+  (defvar name 0))
 
 (define-macro-rule ()
   (deo-with arg at)
