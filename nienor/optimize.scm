@@ -160,7 +160,6 @@
         (pred (cdr (assoc 'b vs)) (cdr (assoc 'a vs)))))
 
     ;; TODO: all these rely too heavily on prelude implemntation
-    ;; TODO: and or =
     (define constant-folders
       ;; literal                 match                                              replace
       `(((nigeb uxn-call! add 2) (nigeb (uxn-call! (2) add) ,number?-a ,number?-b) ,(make-folder +))

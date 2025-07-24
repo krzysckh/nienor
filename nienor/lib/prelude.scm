@@ -397,23 +397,6 @@
 ;;       (begin . body)
 ;;       (jmp! _while))))
 
-;; (define-macro-rule (_)
-;;   (_let-loop name (_ . keys) (_ . vals) (_ (key value) . rest) . body)
-;;   (_let-loop name (_ key . keys) (_ value . vals) (_ . rest) . body))
-
-;; (define-macro-rule (_)
-;;   (_let-loop name (_ . keys) (_ . vals) (_) . body)
-;;   (let ((name (with-label _wtf
-;;                 (let ((f (λ (_reverse . keys) (jmp! _wtf))))
-;;                   (begin . body)
-;;                   (uxn-call! (2 r) jmp)
-;;                   f))))
-;;     (name . (_reverse . vals))))
-
-;; (define-macro-rule (_)
-;;   (let loop ((key val) . rest) . body)
-;;   (_let-loop loop (_ key) (_ val) (_ . rest) . body))
-
 (define-macro-rule ()
   (with-local k v . body)
   (begin
@@ -638,3 +621,58 @@
 
    (define ((__append-symbols make- name))
      (malloc (+ base (/ size 8) 1)))))
+
+(define nil 0)
+
+(define (cons a b)
+  (let ((pt (malloc 4)))
+    (set! pt a)
+    (set! (+ pt 2) b)
+    pt))
+
+(define-macro-rule ()
+  (list a . rest)
+  (cons a (list . rest)))
+
+(define-macro-rule ()
+  (list a)
+  (cons a nil))
+
+(define-macro-rule ()
+  (car v)
+  (get! v))
+
+(define-macro-rule ()
+  (cdr v)
+  (get! (+ v 2)))
+
+(define (_print-list l)
+  (when l
+    (print-number* (car l))
+    (when (cdr l) (putchar #\space))
+    (_print-list (cdr l))))
+
+(define-macro-rule ()
+  (print-list l)
+  (begin
+    (putchar #\()
+    (_print-list l)
+    (putchar #\))
+    (putchar #\newline)))
+
+(define-macro-rule (_)
+  (_let-loop name (_ . keys) (_ . vals) (_ (key value) . rest) . body)
+  (_let-loop name (_ key . keys) (_ value . vals) (_ . rest) . body))
+
+;; TODO: this grows the return stack — it doesn't tailcall D:
+(define-macro-rule (_)
+  (_let-loop name (_ . keys) (_ . vals) (_) . body)
+  (begin
+    (begin . vals)
+    (with-label name
+      (with-locals! keys
+        . body))))
+
+(define-macro-rule (_)
+  (let loop ((key val) . rest) . body)
+  (_let-loop loop (_ key) (_ val) (_ . rest) . body))

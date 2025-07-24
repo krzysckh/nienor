@@ -9,13 +9,15 @@
 (define *uxnemu-implementation* (or (sys/getenv "UXNEMU") "uxn11"))
 
 (define files
-  (map
-   (H str "t/")
-   (filter
-    (B not (C equal? *self*))
+  (sort
+   string-ci<?
+   (map
+    (H str "t/")
     (filter
-     (string->regex "m/\\.scm$/")
-     (sys/dir->list "t")))))
+     (B not (C equal? *self*))
+     (filter
+      (string->regex "m/\\.scm$/")
+      (sys/dir->list "t"))))))
 
 (define (output-exp->ff exp)
   (let loop ((ff empty) (exp (cdr exp)))
