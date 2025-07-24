@@ -10,3 +10,4 @@ bin/*
 *.tal
 *.core
 s.scm
+uxncli*

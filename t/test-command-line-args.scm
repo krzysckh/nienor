@@ -11,5 +11,5 @@
           (print "- ")
           (print s)
           (putchar #\newline))
-        args))))
-  (exit!))
+        args)
+       (exit!)))))
