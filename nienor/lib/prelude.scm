@@ -722,6 +722,13 @@
   (reverse l)
   (_reverse l nil))
 
+(define-macro-rule ()
+  (reverse/ l_)
+  (let* ((l l_)
+         (v (reverse l)))
+    (free-list l)
+    v))
+
 (define (for-each f lst)
   (when lst
     (f (car lst))
@@ -737,3 +744,26 @@
   (let* ((l lst) (v (f l)))
     (free-list l)
     v))
+
+(define-macro-rule ()
+  (f/ a b lst_)
+  (let* ((l lst) (v (a b l)))
+    (free-list l)
+    v))
+
+(define-macro-rule ()
+  (map/ f l)
+  (f/ map f l))
+
+(define (append a b)
+  (if a
+      (cons (car a) (append (cdr a) b))
+      b))
+
+(define-macro-rule ()
+  (append/ a_ b_)
+  (let ((a a_) (b b_))
+    (let ((l (append a b)))
+      (free-list a)
+      (free-list b)
+      l)))

@@ -112,3 +112,20 @@ Run: Ended.
   (print-number (test-call-stack #xffff))
   (exit 128))
 ```
+
+### Lists
+
+Lists are implemented but require manual memory management. Functions that operate on lists
+might have counterparts that free the arguments after usage.
+
+```scheme
+(let ((l (append (list 1 2 3) (list 4))))
+  (print-list l)) ; => (1 2 3 4)
+;; This would leak memory allocated for (list 1 2 3) and (list 4),
+;; as `append' creates a new list.
+
+(let ((l (append/ (list 1 2 3) (list 4))))
+  (print-list l)) ; => (1 2 3 4)
+;; The append/ function runs append, and frees the args passed to it. If you only wish to free
+;; one of the arguments, you have to manage the memory yourself. To free a list use (free-list ...)
+```
