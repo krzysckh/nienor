@@ -1,6 +1,7 @@
 (define-simple-deo putchar #x18)
 (define-simple-deo putchar-error #x19)
 
+(define-signature _print-number Number -> Number -> Void)
 ;; very very inefficient and local-stack exhausting way to print a number
 (define (_print-number n depth)
   (if (equ? 1 (band (equ? n 0) (> depth 0)))

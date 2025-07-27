@@ -85,6 +85,12 @@
          (else
           (loop (cdr l) (+ n 1))))))
 
+    (define (types-of f env)
+      (if-lets ((ff (get env 'tcheck #f))
+                (v (get ff f #f)))
+        (values (get v 'args #n) (get v 'result #f))
+        (values #f #f)))
+
     (define (codegen at lst)
       (λ (env) ; env -> (values at code env')
         (let loop ((lst lst)
@@ -437,6 +443,19 @@
                               (args (cdr* exp))
                               (f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) (reverse args)) (funcall! ,func))))
                               (at code env* (f env)))
+                         ;; TODO: finally make nigeb a special builtin, not an ugly ugly hack that still gets
+                         ;; removed by the compiler
+                         (unless (eq? 'nigeb func)
+                           (for-each
+                            (λ (a)
+                              (when (list? a)
+                                (lets ((types res (types-of (car a) env)))
+                                        ; (print "result: " res)
+                                  (when (eq? res 'Void)
+                                    (error "Trying to pass a return value of a Void function as an argument."
+                                           `(func: ,(car a) args: ,(cdr a) types: ,types  res: ,res)
+                                          )))))
+                            args))
                          (loop
                           rest at
                           (put env* 'acheck (append (get env* 'acheck #n) (list `(,func ,(len args) ,exp))))
@@ -458,7 +477,12 @@
                (loop (append (file->sexps filename) (cdr exp)) env acc (+ substitutions 1)))
               ((_declare-var! var-name)
                (loop (cdr exp) (put env 'vars (cons var-name (get env 'vars #n))) acc (+ substitutions 1)))
-
+              ((_define-signature func-name types ret)
+               ; (format stdout "signature for ~a: ~a -> ~a~%" func-name types ret)
+               (let ((ff (pipe empty
+                           (put 'args types)
+                           (put 'result ret))))
+                 (loop (cdr exp) (put env 'tcheck (put (get env 'tcheck empty) func-name ff)) acc (+ substitutions 1))))
               (else
                (loop (cdr exp) env (append acc (list (car exp))) substitutions))))))
 

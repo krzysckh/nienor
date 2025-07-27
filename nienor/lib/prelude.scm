@@ -292,11 +292,13 @@
   (bior* a b)
   (bior a b))
 
+(define-signature band8 Number -> Number -> Number)
 (define (band8 a b)
   (pus! a)
   (pus! b)
   (uxn-call! () and))
 
+(define-signature << Number -> Number -> Number)
 (define (<< a b)
   (push! a)
 
@@ -306,6 +308,7 @@
 
   (uxn-call! (2) sft))
 
+(define-signature >> Number -> Number -> Number)
 (define (>> a b)
   (push! a)
   (band8 b #b00001111)
@@ -321,6 +324,7 @@
   (exit!)
   (exit 128))
 
+(define-signature equ? Any -> Any -> Bool)
 ;; short equal
 (define (equ? a b)
   (push! a)
@@ -435,6 +439,7 @@
 ;; https://en.wikipedia.org/wiki/Xorshift
 (alloc! *rand-seed-state* 8 91)
 
+(define-signature rand Number)
 (define (rand)
   (let* ((x (get! *rand-seed-state*))
          (x (bxor x (<< x 3)))
@@ -443,6 +448,7 @@
     (set! *rand-seed-state* x)
     x))
 
+(define-signature srand Number -> Void)
 (define (srand x)
   (set! *rand-seed-state* x))
 
@@ -460,6 +466,7 @@
     (begin . body)
     (free name)))
 
+(define-signature memcpy Pointer -> Pointer -> Number -> Void)
 (define (memcpy dst src len)
   (loopn (i 0 len 1)
     (set8! (+ dst i) (get8! (+ src i)))))
@@ -489,6 +496,7 @@
   (call-with-lines f str)
   (_call-with-lines f str 0))
 
+(define-signature _call-with-lines Pointer -> Pointer -> Number -> Void)
 ;; f = (λ (s counter) ...)
 (define (_call-with-lines f str ctr)
   (when (not (equ? (strlen str) 0))
@@ -500,6 +508,7 @@
       (free p)
       (_call-with-lines f (+ str len 1) (+ ctr 1)))))
 
+(define-signature string-append Pointer -> Pointer -> Pointer)
 (define (string-append a b)
   (let* ((la (strlen a))
          (lb (strlen b))
@@ -508,6 +517,7 @@
     (memcpy (+ p la) b (+ lb 1))
     p))
 
+(define-signature string=? Pointer -> Pointer -> Bool)
 (define (string=? a b)
   (let ((ca (get8! a))
         (cb (get8! b)))
@@ -767,3 +777,15 @@
       (free-list a)
       (free-list b)
       l)))
+
+(define-macro-rule (_)
+  (define-signature func . begin)
+  (define-signature func (_) . begin))
+
+(define-macro-rule (_)
+  (define-signature func (_ . types) ret)
+  (_define-signature func (__m_reverse . types) ret))
+
+(define-macro-rule (-> _)
+  (define-signature func (_ . types) t1 -> . rest)
+  (define-signature func (_ t1 . types) . rest))
