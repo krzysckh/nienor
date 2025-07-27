@@ -508,7 +508,7 @@
       (free p)
       (_call-with-lines f (+ str len 1) (+ ctr 1)))))
 
-(define-signature string-append Pointer -> Pointer -> Pointer)
+(define-signature string-append String -> String -> String)
 (define (string-append a b)
   (let* ((la (strlen a))
          (lb (strlen b))
@@ -517,7 +517,7 @@
     (memcpy (+ p la) b (+ lb 1))
     p))
 
-(define-signature string=? Pointer -> Pointer -> Bool)
+(define-signature string=? String -> String -> Bool)
 (define (string=? a b)
   (let ((ca (get8! a))
         (cb (get8! b)))

@@ -3,7 +3,8 @@
    (owl toplevel)
    (nienor common)
    (nienor macro)
-   (nienor optimize))
+   (nienor optimize)
+   (nienor typecheck))
 
   (export
    expand-macros
@@ -84,12 +85,6 @@
          ((eq? local (car l)) n)
          (else
           (loop (cdr l) (+ n 1))))))
-
-    (define (types-of f env)
-      (if-lets ((ff (get env 'tcheck #f))
-                (v (get ff f #f)))
-        (values (get v 'args #n) (get v 'result #f))
-        (values #f #f)))
 
     (define (codegen at lst)
       (λ (env) ; env -> (values at code env')
@@ -449,6 +444,7 @@
                            (for-each
                             (λ (a)
                               (when (list? a)
+                                ;; TODO: move this to (nienor typecheck)
                                 (lets ((types res (types-of (car a) env)))
                                         ; (print "result: " res)
                                   (when (eq? res 'Void)
@@ -548,11 +544,12 @@
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
 
       (let loop ((lst lst) (at #x100) (code #n)
-                 (env (add-macros add-macro *compiler-macros* empty-env))
+                 (env (put (add-macros add-macro *compiler-macros* empty-env) 'verbose? verbose?))
                  (full-lst #n) (keep #n))
         (lets/timer verbose?
                     ((env lst (expand-macros lst env))
                      (lst (optimize lst verbose? keep))
+                     (_ (typecheck lst env))
                      (at code* env ((codegen at lst) env))
                      (epilogue (get env 'epilogue #n))
                      (env (put env 'epilogue #n))

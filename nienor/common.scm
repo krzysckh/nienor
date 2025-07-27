@@ -92,6 +92,7 @@
         (put 'epilogue #n)    ; epilogue = code compiled later
         (put 'arity    empty) ; ff of defun-name -> arity for simple arity checking
         (put 'symbols  empty) ; ff of symbol-name -> id
+        (put 'verbose? #f)    ; self explanatory
         (put 'acheck   #n)    ; ((func-name n-args in-exp) ...) to check arity of funcalls after compiling
         (put 'tcheck   empty) ; ff of function-name -> ff of args=(T ...) result=T'
         ;; TODO: move arity checking to type checking

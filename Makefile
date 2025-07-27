@@ -14,5 +14,5 @@ install: bin/nienor
 	cp -v bin/nienor $(PREFIX)/bin/nienor
 uninstall:
 	rm -v $(PREFIX)/bin/nienor
-test: all
+test:
 	$(OL) run-tests.scm

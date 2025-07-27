@@ -29,45 +29,55 @@
 ;;              \_____/↑
 ;;   fucking unused    free flag
 
+(define-signature malloc/init Void)
 (define (malloc/init)
   (let ((begin-size (- (- #xffff *compiler-end*) malloc/margin))) ; lol
     (set8! *compiler-end* #b1)
     (set! (+ *compiler-end* 1) (- (- #xffff *compiler-end*) malloc/margin))))
 
 ;; real ptr → block size
+(define-signature malloc/get-block-size Pointer -> Number)
 (define (malloc/get-block-size ptr)
   (get! (- ptr 2)))
 
 ;; real ptr → free?
+(define-signature malloc/free? Pointer -> Bool)
 (define (malloc/free? ptr)
   (get8! (- ptr 3)))
 
 ;; mark real ptr as used
+(define-signature malloc/set-used! Pointer -> Void)
 (define (malloc/set-used! ptr)
   (set8! (- ptr 3) (band (bnot #b1) (get8! (- ptr 3)))))
 
 ;; mark real ptr as free
+(define-signature malloc/set-free! Pointer -> Void)
 (define (malloc/set-free! ptr)
   (set8! (- ptr 3) (bior #b1 (get8! (- ptr 3)))))
 
 ;; update size of real ptr
+(define-signature malloc/set-size! Pointer -> Number -> Void)
 (define (malloc/set-size! ptr sz)
   (set! (- ptr 2) sz))
 
+(define-signature malloc/create-block-after Pointer -> Number -> Void)
 (define (malloc/create-block-after ptr sz)
   (let ((base (+ 3 ptr (malloc/get-block-size ptr))))
     (malloc/set-free! base)
     (malloc/set-size! base sz)))
 
+(define-signature memset Pointer -> Number -> Number -> Void)
 (define (memset b c len)
   (loopn (i 0 len 1)
     (set8! (+ b i) c)))
 
+(define-signature malloc Number -> Pointer)
 (define (malloc n)
   (let ((p (_malloc n (+ 3 *compiler-end*))))
     (memset p 0 n)
     p))
 
+(define-signature _malloc Number -> Pointer -> Pointer)
 (define (_malloc n ptr)
   (cond
    ((>= ptr (- #xffff malloc/margin))
@@ -86,9 +96,11 @@
    (else
     (_malloc n (+ ptr (malloc/get-block-size ptr) 3)))))
 
+(define-signature malloc/next-block Pointer -> Pointer)
 (define (malloc/next-block ptr)
   (+ ptr (malloc/get-block-size ptr) 3))
 
+(define-signature malloc/connect-refs! Pointer -> Void)
 (define (malloc/connect-refs! ptr)
   (if (and (<= ptr (- #xffff malloc/margin)) (>= ptr *compiler-end*))
       (let ((next (malloc/next-block ptr)))
@@ -99,10 +111,12 @@
             (malloc/connect-refs! (malloc/next-block ptr))))
       (noop)))
 
+(define-signature free Pointer -> Void)
 (define (free ptr)
   (malloc/set-free! ptr)
   (malloc/connect-refs! (+ 3 *compiler-end*)))
 
+(define-signature realloc Pointer -> Number -> Pointer)
 (define (realloc p size)
   (let* ((old (malloc/get-block-size p))
          (newptr (malloc size)))

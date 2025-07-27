@@ -5,6 +5,7 @@
    (nienor macro))
 
   (export
+   code->defuns
    code->used-symbols
    optimize)
 
@@ -130,14 +131,13 @@
                 (else
                  e))))))))
 
+    (define (code->defuns lst)
+      (filter (λ (l) (or (eq? (car* (car l)) '_defun)
+                         (eq? (car* (car l)) '_defun-vector)))
+              lst))
+
     (define (make-defun? lst)
-      (let ((defuns
-              (map
-               cadr
-               (filter
-                (λ (l) (or (eq? (car* (car l)) '_defun)
-                           (eq? (car* (car l)) '_defun-vector)))
-                lst))))
+      (let ((defuns (map cadr (code->defuns lst))))
         (λ (sym)
           (has? defuns sym))))
 
