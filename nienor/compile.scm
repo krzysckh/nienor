@@ -46,7 +46,7 @@
                                  (if short?  #b00100000 0)
                                  (if return? #b01000000 0)
                                  (if keep?   #b10000000 0))))
-            (error "unknown opcode: " opc))))
+            (error (str "unknown opcode: " opc)))))
 
     (define (name->skip-prologue-name name)
       (string->symbol (str name "__skip-prologue")))
@@ -124,14 +124,11 @@
                                   ((number? exp)
                                    (if (> exp 255)
                                        (let ((l (list (>> (band #xff00 exp) 8) (band #xff exp))))
-                                         (warn
-                                          "_alloc:" exp
-                                          "is > 255, allocating it as 2 bytes. consider doing this explicitly with these values: "
-                                          l "to silence this warning")
+                                         (warn (format #f "_alloc: ~a is > 255, allocating it as 2 bytes. consider doing this explicitly with these values: ~a to silence this warning" exp l))
                                          (tuple 'bytes l))
                                        (tuple 'bytes (list exp))))
                                   (else
-                                   (error "i don't know what type" exp "is"))))
+                                   (error (format #f "Unknown expression type of ~a." exp)))))
                                exps))
                               (len (fold
                                     (λ (a b)
@@ -209,7 +206,7 @@
                                         (else
                                          (loop (cdr l) (+ n 1))))))
                                     ((null? value)
-                                     (error "syntax-error: cannot push null"))
+                                     (error 'syntax-error "cannot push null"))
                                     ((list? value)
                                      (lets ((f (codegen at (list value)))
                                             (at code env (f env)))
@@ -222,7 +219,7 @@
                                         (+ at 3)
                                         (with-comment `(string (,name)) (tuple 'unresolved-symbol name resolve)))))
                                     (else
-                                     (error "unsupported type for _push!: " value)))))
+                                     (error (format #f "Cannot push: ~a" value))))))
                          (loop rest at env (append acc
                                                    (if (list? value) '() (list (tuple 'commentary `(_push! ,value)))) ; don't comment resolving lists
                                                    code))))
@@ -430,9 +427,9 @@
                                  (lets ((n (len (keys (get env 'symbols empty))))
                                         (env* (put env 'symbols (put (get env 'symbols empty) x n))))
                                    (loop `((_push! _ ,n) ,@rest) at env* acc))))
-                           (error "Not a symbol: " x)))
+                           (error (str "Not a symbol: " x))))
                       ((_compiler-error data)
-                       (error "Cannot compile, user-defined error: " data))
+                       (error "Cannot compile, user-defined error." data))
                       (else ; funcall OR ignored
                        (lets ((func (car* exp))
                               (args (cdr* exp))
@@ -449,8 +446,10 @@
                                         ; (print "result: " res)
                                   (when (eq? res 'Void)
                                     (error "Trying to pass a return value of a Void function as an argument."
-                                           `(func: ,(car a) args: ,(cdr a) types: ,types  res: ,res)
-                                          )))))
+                                           `(func: ,(car a))
+                                           `(args: ,(cdr a))
+                                           `(types: ,types)
+                                           `(res: ,res))))))
                             args))
                          (loop
                           rest at
@@ -503,16 +502,16 @@
                                    (len a))) ; ^- this is true for both modes, but just taking len is faster
                        (ptr (- ptr* #x100)))
                    (if (> (len a) ptr)
-                       (error "attempting to codegen-at! on code that was already written " ptr)
+                       (error (str "Attempting to codegen-at! place that was already written: " ptr))
                        (append a (make-list (- ptr length) 0)))))
                 ((bytes l)
                  (append a l))
                 ((unresolved-symbol symbol resolve)
                  (if-lets ((loc (get (get env 'labels empty) symbol)))
                    (append a (resolve loc))
-                   (error "couldn't resolve symbol " symbol)))
+                   (error (str "Couldn't resolve symbol " symbol))))
                 (else
-                 (error "unknown directive " b))))
+                 (error (str "unknown directive " b)))))
             #n
             lst))
 
@@ -525,7 +524,7 @@
                   (code      (lref chk 2)))
              (if-lets ((n (get arity func-name #f)))
                (when (not (= nargs n))
-                 (warn "invalid arity in function call" code "- expected" n "arguments")))))
+                 (warn (format #f "Invalid arity in function call ~a — expected ~a arguments." code n))))))
          (get env 'acheck empty))))
 
     ;; ooo! we hackin

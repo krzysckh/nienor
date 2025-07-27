@@ -107,12 +107,18 @@
     (define (return? op) (= (band #b01000000 op) #b01000000))
     (define (keep? op)   (= (band #b10000000 op) #b10000000))
 
+    (define (err type mesg rest)
+      (print-to stderr (str type) ": " mesg)
+      (when rest
+        (for-each
+         (H print-to stderr)
+         (map (λ (s) (str (make-string (+ 2 (string-length (str type))) #\space) s)) rest))))
 
-    (define (warn . l)
-      (print-to stderr "warning: " l))
+    (define (warn mesg . l)
+      (err 'warning mesg l))
 
-    (define (error . l)
-      (print-to stderr "error: " l)
+    (define (error mesg . l)
+      (err 'error mesg l)
       (halt 42))
 
     (define (file->sexps filename)

@@ -57,6 +57,14 @@
 
     (define special '(nigeb uxn-call! _push!))
 
+    (define (types->declaration l)
+      (if (= (len l) 1)
+          (car l)
+          (fold
+           (λ (a b) (str a " -> " b))
+           (car* l)
+           (cdr* l))))
+
     (define (typecheck-funcall funcall types env)
       (lets ((f (car funcall))
              (args (cdr funcall))
@@ -81,7 +89,12 @@
                              (if (or (eq? (car required) 'Any)
                                      (has? (assoc (car got) association-table) (car required)))
                                  (loop (cdr required) (cdr got))
-                                 (error (format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall argT l))
+                                 (error (format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall argT l)
+                                        "Function declared as"
+                                        (format #f "  ~a :: ~a" f (types->declaration (append argT (list resT))))
+                                        "Used as"
+                                        (format #f "  ~a :: ~a" f (types->declaration (append l (list resT))))
+                                        (format #f "~a cannot be treated as ~a" (car got) (car required)))
                                  ))))))))))
 
     (define (walk-typecheck defun env)
