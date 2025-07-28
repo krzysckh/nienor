@@ -49,12 +49,12 @@
   (set-colors! #x0f00 #x00f0 #x000f)
   (set! first-bun (make-bunny*)))
 
-(define (add-bunny begin)
-  (if (bunny-next begin)
-      (add-bunny (bunny-next begin))
+(define (add-bunny start)
+  (if (bunny-next start)
+      (add-bunny (bunny-next start))
       (begin
         (set! n-bnus (+ n-bnus 1))
-        (set-bunny-next! begin (make-bunny*)))))
+        (set-bunny-next! start (make-bunny*)))))
 
 (define (draw-bunnies bun)
   (when bun

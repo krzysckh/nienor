@@ -194,18 +194,6 @@
 (define fg-fill-tr #xe0)
 (define fg-fill-tl #xf0)
 
-;; I define begin with no special syntax treatment
-;; it's a hack as follows, i declare a `nigeb' label, which is begin backwards
-;; it (as the name suggests) does what begin would do backwards
-;; that's because the compiler thinks it's a function, and tries to (_push!)
-;; the results of functions that are arguments... in reverse order
-;; that's why we have a __m_reverse macro, which does a nigeb->begin transformation
-;; (reverses arguments) - now we can create a begin !
-
-;; this is a function that just returns
-(define-label! nigeb)
-(uxn-call! (2 r) jmp)
-
 (define-macro-rule ()
   (jmp2r!)
   (uxn-call! (2 r) jmp))
@@ -225,10 +213,6 @@
 (define-macro-rule (_)
   (__m_reverse (_ b . c) . a)
   (__m_reverse (_ . c) b . a))
-
-(define-macro-rule (_)
-  (begin . exp)
-  (nigeb . (__m_reverse . exp)))
 
 (define-macro-rule ()
   (debug!)
@@ -421,6 +405,14 @@
 (define-macro-rule (_)
   (let (_ . keys) (_ . values) ((key val) . rest) . body)
   (let (_ key . keys) (_ val . values) rest . body))
+
+(define-macro-rule ()
+  (begin . code)
+  (_begin code))
+
+(define-macro-rule ()
+  (nigeb . vs)
+  (begin . (__m_reverse . vs)))
 
 (define-macro-rule (_ ())
   (let (_ . keys) (_ . values) () . body)

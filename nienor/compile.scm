@@ -92,6 +92,7 @@
                    (at at)
                    (env env)
                    (acc #n))
+          ;; (print lst)
           (if (null? lst)
               (values at acc env)
               (lets ((exp rest lst))
@@ -265,20 +266,18 @@
                              (keep?   (has? mode 'k)))
                          (loop rest (+ at 1) env (append acc (list (opcode opc short? return? keep?))))))
                       ((funcall! func)
-                       (if (eq? func 'nigeb) ; TODO: generalize
-                           (loop rest at env (append acc (list (tuple 'commentary '(removed nigeb call)))))
-                           (lets ((f (codegen at `((_push! _ ,func))))
-                                  (at code env* (f env)))
-                             (loop
-                              rest
-                              (+ at 1) ; +1 because of JSR2
-                              env*
-                              (append
-                               acc                                          ; old code
-                               (list (tuple 'commentary `(funcall! ,func))) ; comment
-                               code                                         ; push function
-                               (list (tuple 'bytes `(,(short! JSR))))       ; jump
-                               )))))
+                       (lets ((f (codegen at `((_push! _ ,func))))
+                              (at code env* (f env)))
+                         (loop
+                          rest
+                          (+ at 1) ; +1 because of JSR2
+                          env*
+                          (append
+                           acc                                          ; old code
+                           (list (tuple 'commentary `(funcall! ,func))) ; comment
+                           code                                         ; push function
+                           (list (tuple 'bytes `(,(short! JSR))))       ; jump
+                           ))))
                       ((if arg then else)
                        (lets ((func (car* exp))
                               (args (cdr* exp))
@@ -430,27 +429,33 @@
                            (error (str "Not a symbol: " x))))
                       ((_compiler-error data)
                        (error "Cannot compile, user-defined error." data))
+                      ((_begin code)
+                       (lets ((f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) code))))
+                              (at code env (f env)))
+                         (loop
+                          rest at
+                          env
+                          (append acc code))))
                       (else ; funcall OR ignored
                        (lets ((func (car* exp))
                               (args (cdr* exp))
                               (f (codegen at `(,@(map (λ (a) `(_push! _ ,a)) (reverse args)) (funcall! ,func))))
                               (at code env* (f env)))
-                         ;; TODO: finally make nigeb a special builtin, not an ugly ugly hack that still gets
-                         ;; removed by the compiler
-                         (unless (eq? 'nigeb func)
-                           (for-each
-                            (λ (a)
-                              (when (list? a)
-                                ;; TODO: move this to (nienor typecheck)
-                                (lets ((types res (types-of (car a) env)))
+                         ;; (unless (eq? 'nigeb func)
+                         ;; TODO: uhh
+                         (for-each
+                          (λ (a)
+                            (when (list? a)
+                              ;; TODO: move this to (nienor typecheck)
+                              (lets ((types res (types-of (car a) env)))
                                         ; (print "result: " res)
-                                  (when (eq? res 'Void)
-                                    (error "Trying to pass a return value of a Void function as an argument."
-                                           `(func: ,(car a))
-                                           `(args: ,(cdr a))
-                                           `(types: ,types)
-                                           `(res: ,res))))))
-                            args))
+                                (when (eq? res 'Void)
+                                  (error "Trying to pass a return value of a Void function as an argument."
+                                         `(func: ,(car a))
+                                         `(args: ,(cdr a))
+                                         `(types: ,types)
+                                         `(res: ,res))))))
+                          args)
                          (loop
                           rest at
                           (put env* 'acheck (append (get env* 'acheck #n) (list `(,func ,(len args) ,exp))))

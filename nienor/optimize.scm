@@ -18,7 +18,7 @@
          (else
           (loop (cdr lst) (cons (car lst) acc))))))
 
-    (define *symbols-used-internally* '(nigeb main malloc/init malloc))
+    (define *symbols-used-internally* '(main malloc/init malloc))
 
     (define (code->used-symbols exp)
       (uniq
@@ -116,10 +116,10 @@
              (let loop ((e (last code #f))
                         (n-locals 0))
                (cond
-                ((eq? (car* e) 'nigeb)
-                 (if (null? (cdr* e))
-                     '(nigeb)
-                     `(nigeb ,(loop (car* (cdr* e)) n-locals) ,@(cdr* (cdr* e)))))
+                ((eq? (car* e) '_begin)
+                 (if (null? (cadr e))
+                     `(_begin ())
+                     `(_begin (,@(but-last (cadr e)) ,(loop (last (cadr e) #n) n-locals)))))
                 ((eq? (car* e) '_with-locals!)
                  `(_with-locals! ,(cadr e) (,@(but-last (caddr e)) ,(loop (last (caddr e) #n) (+ n-locals (len (cadr e)))))))
                 ((eq? (car* e) 'if)
@@ -162,19 +162,19 @@
     ;; TODO: all these rely too heavily on prelude implemntation
     (define constant-folders
       ;; literal                 match                                              replace
-      `(((nigeb uxn-call! add 2) (nigeb (uxn-call! (2) add) ,number?-a ,number?-b) ,(make-folder +))
-        ((nigeb uxn-call! sub 2) (nigeb (uxn-call! (2) sub) ,number?-a ,number?-b) ,(make-folder -))
-        ((nigeb uxn-call! mul 2) (nigeb (uxn-call! (2) mul) ,number?-a ,number?-b) ,(make-folder *))
-        ((nigeb uxn-call! ora 2) (nigeb (uxn-call! (2) ora) ,number?-a ,number?-b) ,(make-folder bior))
-        ((nigeb uxn-call! eor 2) (nigeb (uxn-call! (2) eor) ,number?-a ,number?-b) ,(make-folder bxor))
-        ((nigeb uxn-call! and 2) (nigeb (uxn-call! (2) and) ,number?-a ,number?-b) ,(make-folder band))
-        ((nigeb uxn-call! div 2) (nigeb (uxn-call! (2) div) ,number?-a ,number?-b) ,(make-folder (λ (a b) (floor (/ a b)))))
-        ((nigeb uxn-call! () swp _push! byte 0 2 lth)
-         (nigeb (uxn-call! () swp) (_push! byte 0) (uxn-call! (2) lth) ,number?-a ,number?-b)
+      `(((_begin uxn-call! add 2) (_begin (,number?-b ,number?-a (uxn-call! (2) add))) ,(make-folder +))
+        ((_begin uxn-call! sub 2) (_begin (,number?-b ,number?-a (uxn-call! (2) sub))) ,(make-folder -))
+        ((_begin uxn-call! mul 2) (_begin (,number?-b ,number?-a (uxn-call! (2) mul))) ,(make-folder *))
+        ((_begin uxn-call! ora 2) (_begin (,number?-b ,number?-a (uxn-call! (2) ora))) ,(make-folder bior))
+        ((_begin uxn-call! eor 2) (_begin (,number?-b ,number?-a (uxn-call! (2) eor))) ,(make-folder bxor))
+        ((_begin uxn-call! and 2) (_begin (,number?-b ,number?-a (uxn-call! (2) and))) ,(make-folder band))
+        ((_begin uxn-call! div 2) (_begin (,number?-b ,number?-a (uxn-call! (2) div))) ,(make-folder (λ (a b) (floor (/ a b)))))
+        ((_begin uxn-call! () swp _push! byte 0 2 lth)
+         (_begin (,number?-b ,number?-a (uxn-call! (2) lth) (_push! byte 0) (uxn-call! () swp)))
          ,(λ (vs)
             (if ((make-folder <) vs) 1 0)))
-        ((nigeb uxn-call! () swp _push! byte 0 2 gth)
-         (nigeb (uxn-call! () swp) (_push! byte 0) (uxn-call! (2) gth) ,number?-a ,number?-b)
+        ((_begin uxn-call! () swp _push! byte 0 2 gth)
+         (_begin (,number?-b ,number?-a (uxn-call! (2) gth) (_push! byte 0) (uxn-call! () swp)))
          ,(λ (vs)
             (if ((make-folder >) vs) 1 0)))
         ((if) (if ,number?-a then else) ,(λ (vs) ; compiler-if :P

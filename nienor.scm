@@ -62,9 +62,7 @@
          (cond
           (mac
            ;; TODO: generalize -o -
-           (for-each
-            print
-            (call/cc (λ (c) (n/compile (n/attach-prelude (file->sexps (car extra))) #f c #f)))))
+           (for-each print (call/cc (λ (c) (n/compile (n/attach-prelude (file->sexps (car extra))) #f c verbose?)))))
           (dump
            (let ((f (if (equal? out "-")
                         stdout

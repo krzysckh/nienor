@@ -55,7 +55,7 @@
 
     (define imm? (B not pair?))
 
-    (define special '(nigeb uxn-call! _push!))
+    (define special '(_begin uxn-call! _push!))
 
     (define (types->declaration l)
       (if (= (len l) 1)
@@ -107,7 +107,7 @@
                     (cond
                      ((null? code) types)
                      ((imm? code)  types)
-                     ((and (list? code) (eq? (car code) 'nigeb))
+                     ((and (list? code) (eq? (car code) '_begin))
                       (for-each (H walk types) (cdr code))
                       types)
                      ((and (list? code) (eq? (car code) 'if))
