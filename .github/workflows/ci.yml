@@ -44,7 +44,7 @@ jobs:
           cp bin/nienor.exe build/nienor.exe
           cp bin/nienor build/nienor-`cc -dumpmachine`
       - name: Upload as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: nienor
           path: build/
