@@ -11,3 +11,4 @@ bin/*
 *.core
 s.scm
 uxncli*
+*.exe

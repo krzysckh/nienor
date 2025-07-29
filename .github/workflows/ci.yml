@@ -7,6 +7,10 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+      - name: Setup MinGW
+        uses: egor-tensin/setup-mingw@v2
+        with:
+          platform: any
       - name: Download dependencies
         shell: bash
         run: |
@@ -27,3 +31,20 @@ jobs:
         shell: bash
         run: |
           UXNEMU=uxncli make test CC=clang
+      - name: Compile windows binary
+        shell: bash
+        run: |
+          sudo add-apt-repository universe
+          sudo dpkg --add-architecture i386
+          sudo apt update
+          sudo apt install -y wine wine32 wget
+          wget https://pub.krzysckh.org/owl-winbuilds/ol-small.exe
+          make bin/nienor.exe
+          mkdir build
+          cp bin/nienor.exe build/nienor.exe
+          cp bin/nienor build/nienor-`cc -dumpmachine`
+      - name: Upload as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: nienor
+          path: build/
