@@ -24,7 +24,7 @@ jobs:
       - name: Install uxn
         shell: bash
         run: |
-          wget https://git.sr.ht/~rabbits/uxn11/blob/main/src/uxncli.c
+          wget https://git.sr.ht/~rabbits/uxn11/blob/f366f0db973b2a9ee2c9b19df02a5d6951072b32/src/uxncli.c
           cc -O2 -o uxncli uxncli.c
           sudo cp uxncli /bin/
       - name: Run tests
