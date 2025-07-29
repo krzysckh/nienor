@@ -458,7 +458,7 @@
                           args)
                          (loop
                           rest at
-                          (put env* 'acheck (append (get env* 'acheck #n) (list `(,func ,(len args) ,exp))))
+                          env*
                           (append acc code)))))
                     (loop `((_push! _ ,exp) ,@rest) at env acc) ; if we got an atom, just push it
                     ))))))
@@ -520,18 +520,6 @@
             #n
             lst))
 
-    (define (check-funcall-arity env)
-      (let ((arity (get env 'arity empty)))
-        (for-each
-         (λ (chk)
-           (lets ((func-name (lref chk 0))
-                  (nargs     (lref chk 1))
-                  (code      (lref chk 2)))
-             (if-lets ((n (get arity func-name #f)))
-               (when (not (= nargs n))
-                 (warn (format #f "Invalid arity in function call ~a — expected ~a arguments." code n))))))
-         (get env 'acheck empty))))
-
     ;; ooo! we hackin
     (define *compiler-macros*
       ;; literal                 match                      replace
@@ -553,7 +541,6 @@
         (lets/timer verbose?
                     ((env lst (expand-macros lst env))
                      (lst (optimize lst verbose? keep))
-                     (_ (typecheck lst env))
                      (at code* env ((codegen at lst) env))
                      (epilogue (get env 'epilogue #n))
                      (env (put env 'epilogue #n))
@@ -561,7 +548,7 @@
           (if (null? epilogue)
               (begin
                 (kill-gensym!)
-                (check-funcall-arity env)
+                (typecheck full-lst env)
                 (if only-expand-macros
                     (only-expand-macros full-lst)
                     (values env (resolve

@@ -92,12 +92,10 @@
         (put 'locals   #n)    ; a list, newest consed before, then removed at free-locals!
         (put 'macros   empty) ; ff of macro-name -> λ (exp) -> rewritten
         (put 'epilogue #n)    ; epilogue = code compiled later
-        (put 'arity    empty) ; ff of defun-name -> arity for simple arity checking
+        (put 'arity    empty) ; ff of defun-name -> arity for simple arity checking ;; <- TODO: move this somewhere else
         (put 'symbols  empty) ; ff of symbol-name -> id
         (put 'verbose? #f)    ; self explanatory
-        (put 'acheck   #n)    ; ((func-name n-args in-exp) ...) to check arity of funcalls after compiling
         (put 'tcheck   empty) ; ff of function-name -> ff of args=(T ...) result=T'
-        ;; TODO: move arity checking to type checking
         ))
 
     (define (maybe-opc x) (if (symbol? x) (get *opcodes* x #f) x))

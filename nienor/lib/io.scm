@@ -104,7 +104,7 @@
 
 ;; TODO: rewrite these in a modern way
 ;; i don't have to use the stack explicitly anymore
-(define-signature pixel! Number -> Number -> Number -> Number -> Number -> Number -> Number -> Number -> Void)
+(define-signature sprite! Number -> Number -> Number -> Number -> Number -> Number -> Number -> Number -> Void)
 (define (sprite! x y sprite bpp2? layer fx fy color)
   (pick-pixel! x y)
   (pick-sprite! sprite)
@@ -113,36 +113,36 @@
     (pus! #x2f)
     (deo!)))
 
-(define-signature console-read Void -> Number)
+(define-signature console-read Number)
 (define (console-read)
   (pus! #x12)
   (dei!)
   (pus! 0)
   (uxn-call! () swp))
 
-(define-signature console-type Void -> Number)
+(define-signature console-type Number)
 (define (console-type)
   (pus! #x17)
   (dei!)
   (pus! 0)
   (uxn-call! () swp))
 
-(define-signature mouse-x Void -> Number)
+(define-signature mouse-x Number)
 (define (mouse-x)
   (pus! #x92)
   (dei2!))
 
-(define-signature mouse-y Void -> Number)
+(define-signature mouse-y Number)
 (define (mouse-y)
   (pus! #x94)
   (dei2!))
 
-(define-signature key-pressed Void -> Number)
+(define-signature key-pressed Number)
 (define (key-pressed)
   (pus! #x83)
   (dei2!))
 
-(define-signature button-pressed Void -> Number)
+(define-signature button-pressed Number)
 (define (button-pressed)
   (pus! #x82)
   (dei2!)
@@ -151,7 +151,7 @@
         #\newline
         b)))
 
-(define-signature mouse-state Void -> Number)
+(define-signature mouse-state Number)
 (define (mouse-state)
   (pus! #x96)
   (dei!)

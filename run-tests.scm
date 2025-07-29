@@ -17,17 +17,22 @@
      (sys/dir->list "t")))))
 
 (define (output-exp->ff exp)
-  (let loop ((ff empty) (exp (cdr exp)))
+  (let loop ((vs empty) (exp (cdr exp)))
     (if (null? exp)
-        ff
+        vs
         (if (eq? (cadr exp) '=>)
-            (loop (put ff (car exp) (caddr exp)) (cdddr exp))
+            (loop (put vs (car exp) (caddr exp)) (cdddr exp))
             (N/error "invalid test expression " exp)))))
 
-(define (compile filename)
+(define (compile filename vs)
   (if (system `("./bin/nienor" "-qo" ,*tmp-rom-location* ,filename))
       1
-      0))
+      (if (eq? 'failure (get vs 'expected-compilation-result #f))
+          (begin
+            (format stdout " ^- this is fine, as the 'expected-compilation result of this test was set to ~a~%"
+                    (str* (get vs 'expected-compilation-result #f)))
+            1)
+          0)))
 
 (define (expect what)
   (lets ((r w (popen (format #f "~a ~a ARG 2>/dev/null" *uxnemu-implementation* *tmp-rom-location*)))
@@ -36,17 +41,19 @@
         1
         0)))
 
-(define (compile-and-expect filename what)
-  (if (= 1 (compile filename))
-      (+ 1 (expect what))
-      1))
+(define (compile-and-expect filename vs)
+  (let ((what (get vs 'output 'bug)))
+    (if (= 1 (compile filename vs))
+        (+ 1 (expect what))
+        1)))
 
 ;; filename → (values filename possible-tests passed-tests)
 (define (run-test filename)
-  (if-lets ((data (assoc '_declare-test (N/file->sexps filename)))
-            (ff (output-exp->ff data)))
-    (values 2 (compile-and-expect filename (get ff 'output "")))
-    (values 1 (compile filename))))
+  (lets ((data (assoc '_declare-test (N/file->sexps filename)))
+         (vs (if data (output-exp->ff data) empty)))
+    (if (has? (keys vs) 'output)
+        (values 2 (compile-and-expect filename vs))
+        (values 1 (compile filename vs)))))
 
 (define (print-outcome failed possible got)
   (format stdout "~%~a tests out of ~a ran successfully~%" got possible)

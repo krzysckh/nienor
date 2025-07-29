@@ -14,7 +14,9 @@
       (if-lets ((ff (get env 'tcheck #f))
                 (v  (get ff f #f)))
         (values (get v 'args #n) (get v 'result #f))
-        (values #f #f)))
+        (if-lets ((a (get (get env 'arity empty) f #f)))
+          (values (make-list a 'Any) 'Any)
+          (values #f #f))))
 
     (define imm-type
       (pipe empty
@@ -82,20 +84,27 @@
                 (let ((l (map (λ (a) (cdr* (assoc a arg-types))) args)))
                   (when (get env 'verbose? #f)
                     (format stdout "    [typecheck] ~a requires '~a, gets '~a~%" funcall argT l))
-                  (and (= (len l) (len argT))
-                       (let loop ((required argT) (got l))
-                         (if (null? got)
-                             #t
-                             (if (or (eq? (car required) 'Any)
-                                     (has? (assoc (car got) association-table) (car required)))
-                                 (loop (cdr required) (cdr got))
-                                 (error (format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall argT l)
-                                        "Function declared as"
-                                        (format #f "  ~a :: ~a" f (types->declaration (append argT (list resT))))
-                                        "Used as"
-                                        (format #f "  ~a :: ~a" f (types->declaration (append l (list resT))))
-                                        (format #f "~a cannot be treated as ~a" (car got) (car required)))
-                                 ))))))))))
+                  (let loop ((required argT) (got l))
+                    (cond
+                     ((and (null? got) (null? required))
+                      #t)
+                     ((or (null? got) (null? required))
+                      (error (format #f "Invalid arity in function call `~a' — expected ~a, got ~a" funcall argT l)
+                             "Function declared as"
+                             (format #f "  ~a :: ~a" f (types->declaration (append argT (list resT))))
+                             "Used as"
+                             (format #f "  ~a :: ~a" f (types->declaration (append l (list resT))))))
+                     (else
+                      (if (or (eq? (car required) 'Any)
+                              (has? (assoc (car got) association-table) (car required)))
+                          (loop (cdr required) (cdr got))
+                          (error (format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall argT l)
+                                 "Function declared as"
+                                 (format #f "  ~a :: ~a" f (types->declaration (append argT (list resT))))
+                                 "Used as"
+                                 (format #f "  ~a :: ~a" f (types->declaration (append l (list resT))))
+                                 (format #f "~a cannot be treated as ~a" (car got) (car required)))
+                          ))))))))))
 
     (define (walk-typecheck defun env)
       (lets ((name (cadr   defun))
@@ -108,7 +117,7 @@
                      ((null? code) types)
                      ((imm? code)  types)
                      ((and (list? code) (eq? (car code) '_begin))
-                      (for-each (H walk types) (cdr code))
+                      (for-each (H walk types) (cadr code))
                       types)
                      ((and (list? code) (eq? (car code) 'if))
                       (for-each (H walk types) (cdr code))

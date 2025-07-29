@@ -1,3 +1,6 @@
+(_declare-test
+ expected-compilation-result => failure)
+
 (define (f0))
 (define (f1 a))
 (define (f2 a b))
