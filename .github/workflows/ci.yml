@@ -38,7 +38,7 @@ jobs:
           sudo dpkg --add-architecture i386
           sudo apt update
           sudo apt install -y wine wine32 wget
-          wget https://pub.krzysckh.org/owl-winbuilds/ol32-small.exe
+          wget -O ol-small.exe https://pub.krzysckh.org/owl-winbuilds/ol32-small.exe
           make bin/nienor.exe
           mkdir build
           cp bin/nienor.exe build/nienor.exe
