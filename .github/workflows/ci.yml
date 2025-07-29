@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           wget https://git.sr.ht/~rabbits/uxn11/blob/f366f0db973b2a9ee2c9b19df02a5d6951072b32/src/uxncli.c
-          cc -O2 -o uxncli uxncli.c
+          clang -O2 -o uxncli uxncli.c
           sudo cp uxncli /bin/
       - name: Run tests
         shell: bash
@@ -42,7 +42,7 @@ jobs:
           make bin/nienor.exe
           mkdir build
           cp bin/nienor.exe build/nienor.exe
-          cp bin/nienor build/nienor-`cc -dumpmachine`
+          cp bin/nienor build/nienor-`clang -dumpmachine`
       - name: Upload as artifact
         uses: actions/upload-artifact@v4
         with:
