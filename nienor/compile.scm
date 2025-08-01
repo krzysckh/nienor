@@ -150,7 +150,7 @@
                                 tuples))))
                       ((codegen-at! ptr)
                        (loop rest ptr env (append acc (list (tuple 'codegen-at ptr)))))
-                      ((_push! mode value)
+                      ((_push! mode value) ; TODO: use which-local
                        (lets ((byte? (eq? mode 'byte))
                               (env at code
                                    (cond
@@ -411,9 +411,20 @@
                               (at code env (f env)))
                          (loop rest at env (append acc code))))
                       ((_addrof thing)
-                       (lets ((f (codegen at (if (has? (get env 'vars #n) thing)
-                                                 `((_push! no-get-var! ,thing))
-                                                 `(,thing))))
+                       (lets ((f (codegen at (cond
+                                              ((has? (get env 'vars #n) thing)
+                                               `((_push! no-get-var! ,thing)))   ; <- a variable
+                                              ((has? (get env 'locals #n) thing) ; WARNING: this will reference the zero-page with a LDZ later
+                                               (let ((n (which-local env thing)))
+                                                 `((_push! _ 0)                  ; (0 0)
+                                                   (uxn-call! () ldz)            ; (0 ptr)
+                                                   (_push! byte ,n)              ; (0 ptr n)
+                                                   (uxn-call! () sub)            ; (0 ptr')
+                                                   (_push! byte 2)               ; (0 ptr' 2)
+                                                   (uxn-call! () mul)            ; (0 ptr'') = (ptr''*)
+                                                   )))
+                                              (else
+                                               `(,thing)))))
                               (at code env (f env)))
                          (loop rest at env (append acc code))))
                       ((_in-epilogue! code)

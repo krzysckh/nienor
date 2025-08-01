@@ -646,13 +646,23 @@
    (define ((__append-symbols make- name))
      (malloc (+ base (/ size 8) 1)))))
 
+(define-struct Cell car cdr)
+
 (define nil 0)
 
 (define (cons a b)
-  (let ((pt (malloc 4)))
-    (set! pt a)
-    (set! (+ pt 2) b)
+  (let ((pt (make-Cell)))
+    (set-Cell-car! pt a)
+    (set-Cell-cdr! pt b)
     pt))
+
+(define-macro-rule ()
+  (set-car! . args)
+  (set-Cell-car! . args))
+
+(define-macro-rule ()
+  (set-cdr! . args)
+  (set-Cell-cdr! . args))
 
 (define-macro-rule ()
   (list a . rest)
@@ -664,11 +674,11 @@
 
 (define-macro-rule ()
   (car v)
-  (get! v))
+  (Cell-car v))
 
 (define-macro-rule ()
   (cdr v)
-  (get! (+ v 2)))
+  (Cell-cdr v))
 
 (define (_print-list l)
   (when l
@@ -717,21 +727,21 @@
   (length l)
   (_length l 0))
 
-(define (_list->string l p)
+(define (_list->string l p n)
   (when l
-    (set8! p (car l))
-    (_list->string (cdr l) (+ p 1))))
+    (set8! (+ p n) (car l))
+    (_list->string (cdr l) p (+ n 1))))
 
 (define (list->string l)
   (let ((p (malloc (+ (length l) 1))))
-    (_list->string l p)
+    (_list->string l p 0)
     p))
 
-(define (set-car! cell what)
-  (set! cell what))
+;; (define (set-car! cell what)
+;;   (set! cell what))
 
-(define (set-cdr! cell what)
-  (set! (+ cell 2) what))
+;; (define (set-cdr! cell what)
+;;   (set! (+ cell 2) what))
 
 (define (_reverse l acc)
   (if l
