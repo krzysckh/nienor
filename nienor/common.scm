@@ -11,6 +11,8 @@
    error
    add-macros
 
+   verbose?
+
    with-timer
    lets/timer
 
@@ -127,6 +129,9 @@
     ;; where app = add-macro or alike
     (define (add-macros app lst env)
       (fold (λ (a b) (app a (cadr b) (caddr b) (car b))) env lst))
+
+    (define (verbose? env)
+      (get env 'verbose? #f))
 
     (define-syntax with-timer
       (syntax-rules ()

@@ -252,13 +252,17 @@
   (not x)
   (if x #f #t))
 
-(define-macro-rule ()
-  (> a b)
-  (begin a b (uxn-call! (2) gth) (pus! 0) (uxn-call! () swp)))
+(define (> a b)
+  a b
+  (uxn-call! (2) gth)
+  (pus! 0)
+  (uxn-call! () swp))
 
-(define-macro-rule ()
-  (< a b)
-  (begin a b (uxn-call! (2) lth) (pus! 0) (uxn-call! () swp)))
+(define (< a b)
+  a b
+  (uxn-call! (2) lth)
+  (pus! 0)
+  (uxn-call! () swp))
 
 (define-macro-rule ()
   (>= a b)
@@ -340,13 +344,11 @@
   (addrof var)
   (_addrof var))
 
-(define-macro-rule ()
-  (get8! place)
-  (begin
-    (get! place)
-    (uxn-call! () pop)
-    (pus! 0)
-    (uxn-call! () swp)))
+(define (get8! place)
+  (get! place)
+  (uxn-call! () pop)
+  (pus! 0)
+  (uxn-call! () swp))
 
 (define-macro-rule ()
   (set8! place value)
@@ -377,6 +379,26 @@
           (begin
             (uxn-call! (2) pop)
             (uxn-call! (2) pop))))))
+
+(define-macro-rule ()
+  (in-epilogue! . body)
+  (_in-epilogue! body))
+
+;; THREAD UNSAFE
+(define-macro-rule ()
+  (loopn (it _from _to _by) . body)
+  (begin
+    (with-gensym state
+      (let ((from _from)
+            (to _to)
+            (by _by))
+        (in-epilogue! (nalloc! state 2)) ; WHAT
+        (set! state from)
+        (with-label _loop
+          (when (> to (get! state))
+            (let ((it (get! state))) . body)
+            (set! state (+ (get! state) by))
+            (jmp! _loop)))))))
 
 ;; (define-macro-rule ()
 ;;   (while exp . body)
@@ -695,17 +717,13 @@
   (length l)
   (_length l 0))
 
-(define-macro-rule ()
-  (len l)
-  (_length l 0))
-
 (define (_list->string l p)
   (when l
     (set8! p (car l))
     (_list->string (cdr l) (+ p 1))))
 
 (define (list->string l)
-  (let ((p (malloc (+ (len l) 1))))
+  (let ((p (malloc (+ (length l) 1))))
     (_list->string l p)
     p))
 

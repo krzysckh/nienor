@@ -514,7 +514,7 @@
         ((= opc LTH)
          (if keepp
              (error "unimplemented LTHk")
-             (uxn-push uxn (> (uxn-pop uxn shortp returnp 0) (uxn-pop uxn shortp returnp 0)) 0 returnp))
+             (uxn-push uxn (< (uxn-pop uxn shortp returnp 0) (uxn-pop uxn shortp returnp 0)) 0 returnp))
          (unext uxn))
         ((= opc ADD)
          (if keepp
@@ -716,8 +716,11 @@
 ;;   (set-draw-handler! draw))
 
 (define (counter)
-  (loopn (i 0 5 1)
-    (print-number* i)))
+  (let ((f (λ (f n)
+             (when (< n 5)
+               (print-number* n)
+               (f f (+ n 1))))))
+    (f f 0)))
 
 (define (main)
   (add-thread counter)

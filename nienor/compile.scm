@@ -527,6 +527,18 @@
                                                               (let ((args (cdr (assoc 'args vs))))
                                                                 (string->symbol
                                                                  (fold string-append "" (map symbol->string args))))))
+        ((with-gensym)           (with-gensym bind . body) ,(λ (vs) ; VERY UNSAFE
+                                                              (let ((b (cdr (assoc 'bind vs)))
+                                                                    (body (cdr (assoc 'body vs)))
+                                                                    (g (gensym)))
+                                                                (append
+                                                                 '(begin)
+                                                                 (let walk ((body body))
+                                                                   (cond
+                                                                    ((null? body) #n)
+                                                                    ((pair? body) (cons (walk (car body)) (walk (cdr body))))
+                                                                    (else
+                                                                     (if (eq? body b) g body))))))))
         ))
 
 
