@@ -559,6 +559,10 @@
   (cond (#t . code)))
 
 (define-macro-rule ()
+  (symbol x)
+  (_symbol x))
+
+(define-macro-rule ()
   (quote x)
   (symbol x))
 

@@ -429,7 +429,7 @@
                          (loop rest at env (append acc code))))
                       ((_in-epilogue! code)
                        (loop rest at (put env 'epilogue (append (get env 'epilogue #n) code)) acc))
-                      ((symbol x)
+                      ((_symbol x)
                        (if (symbol? x)
                            (lets ((n (get (get env 'symbols empty) x #f)))
                              (if n
