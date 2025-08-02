@@ -367,38 +367,28 @@
   (_with-locals! names body))
 
 (define-macro-rule ()
-  (loopn (it from to by) . body)
-  (begin
-    to from
-    (with-label _loop
-      (uxn-call! (2) dup)
-      (with-locals! (it) . body)
-      (+ by (begin)) ; from += by ; begin as i don't have any way to say "take from the top of the stack" lmao!
-      (if (byte->short (uxn-call! (k 2) gth))
-          (jmp! _loop)
-          (begin
-            (uxn-call! (2) pop)
-            (uxn-call! (2) pop))))))
+  (with-gensyms (exp . rest) . body)
+  (with-gensym exp (with-gensyms rest . body)))
+
+(define-macro-rule ()
+  (with-gensyms (exp) . body)
+  (with-gensym exp . body))
+
+(define-macro-rule ()
+  (loopn (it _from _to _by) . body)
+  (with-gensyms (to by)
+    (let ((it _from)
+          (to _to)
+          (by _by))
+      (with-label _loop
+        (when (> to it)
+          (begin . body)
+          (set! it (+ it by))
+          (jmp! _loop))))))
 
 (define-macro-rule ()
   (in-epilogue! . body)
   (_in-epilogue! body))
-
-;; THREAD UNSAFE
-(define-macro-rule ()
-  (loopn (it _from _to _by) . body)
-  (begin
-    (with-gensym state
-      (let ((from _from)
-            (to _to)
-            (by _by))
-        (in-epilogue! (nalloc! state 2)) ; WHAT
-        (set! state from)
-        (with-label _loop
-          (when (> to (get! state))
-            (let ((it (get! state))) . body)
-            (set! state (+ (get! state) by))
-            (jmp! _loop)))))))
 
 ;; (define-macro-rule ()
 ;;   (while exp . body)
