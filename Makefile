@@ -17,5 +17,9 @@ install: bin/nienor
 	cp -v bin/nienor $(PREFIX)/bin/nienor
 uninstall:
 	rm -v $(PREFIX)/bin/nienor
+uxncli.c:
+	wget https://git.sr.ht/~rabbits/uxn11/blob/f366f0db973b2a9ee2c9b19df02a5d6951072b32/src/uxncli.c
+uxncli: uxncli.c
+	$(CC) -O2 -o uxncli uxncli.c
 test:
 	$(OL) run-tests.scm

@@ -5,7 +5,7 @@
  (prefix (owl sys) sys/))
 
 (define *tmp-rom-location* "/tmp/test.rom")
-(define *uxnemu-implementation* (or (sys/getenv "UXNEMU") "uxn11"))
+(define *uxnemu-implementation* (or (sys/getenv "UXNEMU") "./uxncli"))
 
 (define files
   (sort
