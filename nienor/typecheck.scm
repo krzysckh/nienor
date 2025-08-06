@@ -120,30 +120,27 @@
             (if (verbose? env)
                 (begin (format stdout "    [typecheck] cannot typecheck `~a' — special funcall" funcall) #t)
                 #t)
-            (begin
-              (when (verbose? env)
-                (format stdout "    [typecheck] ~a requires '~a, gets '~a~%" funcall argT arg-types))
-              (let loop ((required argT) (got arg-types))
-                (cond
-                 ((and (null? got) (null? required))
-                  (if (eq? 'Void resT) #f resT))
-                 ((or (null? got) (null? required))
-                  (error (format #f "Invalid arity in function call `~a' — expected ~a, got ~a" funcall argT arg-types)
-                         "Function declared as"
-                         (format #f "  ~a :: ~a" fun-name (types->declaration (append argT (list resT))))
-                         "Used as"
-                         (format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))))
-                 (else
-                  (if (or (eq? (car required) 'Any)
-                          (has? (assoc (car got) association-table) (car required)))
-                      (loop (cdr required) (cdr got))
-                      (error (format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall argT arg-types)
-                             "Function declared as"
-                             (format #f "  ~a :: ~a" fun-name (types->declaration (append argT (list resT))))
-                             "Used as"
-                             (format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))
-                             (format #f "~a cannot be treated as ~a" (car got) (car required)))
-                      ))))))))
+            (let loop ((required argT) (got arg-types))
+              (cond
+               ((and (null? got) (null? required))
+                (if (eq? 'Void resT) #f resT))
+               ((or (null? got) (null? required))
+                (error (format #f "Invalid arity in function call `~a' — expected ~a, got ~a" funcall argT arg-types)
+                       "Function declared as"
+                       (format #f "  ~a :: ~a" fun-name (types->declaration (append argT (list resT))))
+                       "Used as"
+                       (format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))))
+               (else
+                (if (or (eq? (car required) 'Any)
+                        (has? (assoc (car got) association-table) (car required)))
+                    (loop (cdr required) (cdr got))
+                    (error (format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall argT arg-types)
+                           "Function declared as"
+                           (format #f "  ~a :: ~a" fun-name (types->declaration (append argT (list resT))))
+                           "Used as"
+                           (format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))
+                           (format #f "~a cannot be treated as ~a" (car got) (car required)))
+                    )))))))
 
     (define (lwalk walk l stack types)
       (let loop ((stack stack) (types types) (l l))
@@ -178,7 +175,7 @@
                              (append (make-list adds 'Any) (drop stack takes))
                              types)
                             (skip "not found in effect table"))
-                          (skip "bad uxn-call")))
+                          (skip `("bad uxn-call in" ,code))))
                      ((and (list? code) (eq? (car code) '_push!))
                       (when (eq? (cadr code) 'byte)
                         (skip "byte _push!"))
@@ -237,7 +234,8 @@
           (if (null? defuns)
               #t
               (begin
-                (call/cc (λ (skip) (walk-typecheck (car defuns) env skip)))
-                ;; (walk-typecheck (car defuns) env self)
+                (if-lets ((reason (call/cc (λ (skip) (walk-typecheck (car defuns) env skip)))))
+                  (when (and (verbose? env) (not (eq? reason 'ok)))
+                    (format stdout "    [typecheck] skipped defun ~a because \"~a\"~%" (cadar defuns) reason)))
                 (loop (cdr defuns)))))))
     ))

@@ -302,7 +302,9 @@
   (band8 b #b00001111)
   (uxn-call! (2) sft))
 
-(define-simple-deo exit #x0f)
+(define-simple-deo _exit #x0f)
+(define (exit n)
+  (_exit n))
 
 (define-macro-rule ()
   (flatten! . body)
