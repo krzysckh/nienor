@@ -1,5 +1,11 @@
-(define-simple-deo putchar #x18)
-(define-simple-deo putchar-error #x19)
+(define-simple-deo _putchar #x18)
+(define-simple-deo _putchar-error #x19)
+
+(define (putchar c)
+  (_putchar c))
+
+(define (putchar-error c)
+  (_putchar-error c))
 
 (define-signature _print-number Number -> Number -> Void)
 ;; very very inefficient and local-stack exhausting way to print a number
