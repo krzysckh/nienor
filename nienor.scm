@@ -64,10 +64,14 @@
          (lets ((_ env (call/cc2 (λ (c) (n/compile (n/attach-prelude ()) #f c verbose?)))))
            (lets ((_ l (n/expand-macros (list (read macroexpand?)) env))
                   (l env (call/cc2 (λ (c) (n/compile l #f c verbose? env)))))
-             (for-each (λ (e)
-                         (let ((s (str* e)))
-                           (print (substring s 1 (string-length s)))))
-                       l)
+             (for-each
+              (λ (e)
+                (let ((s (str* e)))
+                  (print
+                   (if (eq? (string-ref s 0) #\')
+                       (substring s 1 (string-length s))
+                       s))))
+              (if (list? l) l (list l)))
              0)))
         ((= (length extra) 1)
          (cond

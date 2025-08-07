@@ -53,7 +53,7 @@
          (append a (filter symbol? (caddr b))))
        #n
        (filter
-        (λ (e) (eq? (car e) '_alloc!))
+        (λ (e) (eq? (car* e) '_alloc!))
         lst)))
 
     ;; This function looks from main and tries to find all functions that _are_ used
@@ -132,12 +132,12 @@
                  e))))))))
 
     (define (code->defuns lst)
-      (filter (λ (l) (or (eq? (car* (car l)) '_defun)
-                         (eq? (car* (car l)) '_defun-vector)))
+      (filter (λ (l) (or (eq? (car* (car* l)) '_defun)
+                         (eq? (car* (car* l)) '_defun-vector)))
               lst))
 
     (define (make-defun? lst)
-      (let ((defuns (map cadr (code->defuns lst))))
+      (let ((defuns (map (B car* cdr*) (code->defuns lst))))
         (λ (sym)
           (has? defuns sym))))
 
@@ -193,11 +193,23 @@
     (define (fold-constants lst)
       (apply-macros (add-macros add-macro constant-folders empty-env) lst))
 
+    (define-syntax pipe-list
+      (syntax-rules ()
+        ((_ l (exp1 . rest) . body)
+         ((λ (l)
+           (if (list? l)
+               (_ l rest . body)
+               l))
+          exp1))
+        ((_ . body)
+         (begin . body))
+        ))
+
     ;; keep = list of symbols that are unresolved & are needed to keep as they might be not referenced in code
     (define (optimize lst verbose? keep)
-      (lets ((lst (fold-constants lst))                      ; fold constants
-             (lst (keep-only-used-defuns lst verbose? keep)) ; delete unused defuns that would eat up space
-             (lst (find-tailcalls lst))                      ; add TCO/TCE marks
-             )
-        lst))
+      (pipe-list lst
+                ((fold-constants lst)                      ; fold constants
+                 (keep-only-used-defuns lst verbose? keep) ; delete unused defuns that would eat up space
+                 (find-tailcalls lst))                     ; add TCO/TCE marks
+         lst))
     ))
