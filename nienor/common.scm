@@ -12,6 +12,7 @@
    add-macros
 
    verbose?
+   imm?
 
    with-timer
    lets/timer
@@ -99,6 +100,8 @@
         (put 'verbose? #f)    ; self explanatory
         (put 'tcheck   empty) ; ff of function-name -> ff of args=(T ...) result=T'
         ))
+
+    (define imm? (B not pair?))
 
     (define (maybe-opc x) (if (symbol? x) (get *opcodes* x #f) x))
     (define (short! x)  (bior (maybe-opc x) #b00100000))

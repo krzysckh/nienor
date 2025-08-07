@@ -555,11 +555,11 @@
 
     ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
-    (define (compile lst with-debug? only-expand-macros verbose?)
+    (define (compile lst with-debug? only-expand-macros verbose? . env)
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
 
       (let loop ((lst lst) (at #x100) (code #n)
-                 (env (put (add-macros add-macro *compiler-macros* empty-env) 'verbose? verbose?))
+                 (env (if (null? env) (put (add-macros add-macro *compiler-macros* empty-env) 'verbose? verbose?) (car env)))
                  (full-lst #n) (keep #n))
         (lets/timer verbose?
                     ((env lst (expand-macros lst env))

@@ -153,8 +153,17 @@
              (else
               (loop (cdr lst) (append acc (list exp)))))))))
 
+    (define (_imm? x) (and (not (symbol? x)) (imm? x)))
+
     (define number?-a (make-pred number? 'a))
     (define number?-b (make-pred number? 'b))
+
+    (define imm?-a (make-pred imm? 'a))
+    (define imm?-b (make-pred imm? 'b))
+
+    (define _imm?-a (make-pred _imm? 'a))
+    (define _imm?-b (make-pred _imm? 'b))
+
     (define (make-folder pred)
       (λ (vs)
         (pred (cdr (assoc 'b vs)) (cdr (assoc 'a vs)))))
@@ -169,12 +178,14 @@
         ((_begin uxn-call! eor 2) (_begin (,number?-b ,number?-a (uxn-call! (2) eor))) ,(make-folder bxor))
         ((_begin uxn-call! and 2) (_begin (,number?-b ,number?-a (uxn-call! (2) and))) ,(make-folder band))
         ((_begin uxn-call! div 2) (_begin (,number?-b ,number?-a (uxn-call! (2) div))) ,(make-folder (λ (a b) (floor (/ a b)))))
+        ((equ?)                   (equ? ,imm?-a ,imm?-b)                               ,(make-folder eqv?))
         ((<) (< ,number?-b ,number?-a) ,(λ (vs) (if ((make-folder <) vs) 1 0)))
         ((>) (> ,number?-b ,number?-a) ,(λ (vs) (if ((make-folder >) vs) 1 0)))
-        ((if) (if ,number?-a then else) ,(λ (vs) ; compiler-if :P
-                                           (if (eq? 0 (cdr (assoc 'a vs)))
+        ((if) (if ,_imm?-a then else) ,(λ (vs) ; compiler-if :P
+                                         (let ((v (cdr (assoc 'a vs))))
+                                           (if (if (number? v) (= 0 v) (eqv? #f v))
                                                (cdr (assoc 'else vs))
-                                               (cdr (assoc 'then vs)))))
+                                               (cdr (assoc 'then vs))))))
         ((>>) (>> ,number?-a ,number?-b) ,(make-folder (λ (b a) (band #xffff (>> a b)))))
         ((<<) (<< ,number?-a ,number?-b) ,(make-folder (λ (b a) (band #xffff (<< a b)))))
         ))

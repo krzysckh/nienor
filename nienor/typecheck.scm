@@ -101,8 +101,6 @@
         (Void)
         (Any      Number Pointer String Symbol)))
 
-    (define imm? (B not pair?))
-
     (define special '(_begin uxn-call! _push!))
 
     (define (types->declaration l)
