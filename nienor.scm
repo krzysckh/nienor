@@ -12,6 +12,7 @@
    `((help   "-h" "--help")
      (output "-o" "--output"            has-arg comment "target file"               default "a.out")
      (emacro "-m" "--expand-macros"             comment "only expand and dump macros")
+     (M      "-M" "--macroexpand"       has-arg comment "expand one macro (the argument) and exit")
      (dump   "-D" "--dump"                      comment "compile & disassemble to uxntal")
      (V      "-V" "--verbose"                   comment "be verbose")
      (q      "-q" "--quiet"                     comment "be quiet")
@@ -54,15 +55,25 @@
             (verbose? (get opt 'V #f))
             (symt (get opt 's #f))
             (quiet? (get opt 'q #f))
+            (macroexpand? (get opt 'M #f))
             (dump (get opt 'dump #f)))
        (when (and quiet? verbose?)
          (error "Cannot specify both --quiet and --verbose. You lose."))
        (cond
+        (macroexpand?
+         (lets ((_ env (call/cc2 (λ (c) (n/compile (n/attach-prelude ()) #f c verbose?)))))
+           (lets ((_ l (n/expand-macros (list (read macroexpand?)) env)))
+             (for-each (λ (e)
+                         (let ((s (str* e)))
+                           (print (substring s 1 (string-length s)))))
+                       l)
+             0)))
         ((= (length extra) 1)
          (cond
           (mac
            ;; TODO: generalize -o -
-           (for-each print (call/cc (λ (c) (n/compile (n/attach-prelude (file->sexps (car extra))) #f c verbose?)))))
+           (lets ((l _ (call/cc2 (λ (c) (n/compile (n/attach-prelude (file->sexps (car extra))) #f c verbose?)))))
+             (for-each print l)))
           (dump
            (let ((f (if (equal? out "-")
                         stdout

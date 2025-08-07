@@ -454,19 +454,19 @@
                               (at code env* (f env)))
                          ;; (unless (eq? 'nigeb func)
                          ;; TODO: uhh
-                         (for-each
-                          (λ (a)
-                            (when (list? a)
-                              ;; TODO: move this to (nienor typecheck)
-                              (lets ((types res (types-of (car a) env)))
-                                        ; (print "result: " res)
-                                (when (eq? res 'Void)
-                                  (error "Trying to pass a return value of a Void function as an argument."
-                                         `(func: ,(car a))
-                                         `(args: ,(cdr a))
-                                         `(types: ,types)
-                                         `(res: ,res))))))
-                          args)
+                         ;; (for-each
+                         ;;  (λ (a)
+                         ;;    (when (list? a)
+                         ;;      ;; TODO: move this to (nienor typecheck)
+                         ;;      (lets ((types res (types-of (car a) env)))
+                         ;;                ; (print "result: " res)
+                         ;;        (when (eq? res 'Void)
+                         ;;          (error "Trying to pass a return value of a Void function as an argument."
+                         ;;                 `(func: ,(car a))
+                         ;;                 `(args: ,(cdr a))
+                         ;;                 `(types: ,types)
+                         ;;                 `(res: ,res))))))
+                         ;;  args)
                          (loop
                           rest at
                           env*
@@ -573,7 +573,7 @@
                 (kill-gensym!)
                 (typecheck full-lst env)
                 (if only-expand-macros
-                    (only-expand-macros full-lst)
+                    (only-expand-macros full-lst env)
                     (values env (resolve
                                  (put env 'labels (put (get env 'labels empty) '*compiler-end* at))
                                  (append code code*) with-debug?))))
