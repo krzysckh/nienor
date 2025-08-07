@@ -232,7 +232,7 @@
                                                err*
                                                (+ depth 1))))))
                                  (when (not (eq? 'ok err))
-                                   (error* (append err `(,(format #f "Called in ~a as `~a'" (car code) code)))))))))
+                                   (error* (append err `(,(format #f "Called in ~a as `~a'" name code)))))))))
                           (values
                            (if T (cons T stack) stack)
                            types))))
