@@ -1,6 +1,7 @@
 (define-library (nienor common)
   (import
    (owl toplevel)
+   (owl eval)
    (owl metric)
    (owl sexp))
 
@@ -13,6 +14,7 @@
 
    verbose?
    imm?
+   apply*
 
    with-timer
    lets/timer
@@ -49,6 +51,9 @@
        #x80))
 
     ;; TODO: some simpler opcode calling, actually use the arity i store here
+    ;; TODO: opcodes should be called as if they were normal functions. less magic.
+    ;;       (begin place (uxn-call! (2) jmp)) -> (__jmp place)
+    ;;       just get rid of uxn-call!, it's so ugly, and the (2 k r) doesn't make any syntactical sense
     (define *opcodes*
       (pipe empty
         (put 'brk `(,BRK 0))
@@ -126,6 +131,9 @@
       (err 'error mesg l)
       (halt 42))
 
+    (define (error* mesg . l)
+      (err 'error mesg l))
+
     (define (file->sexps filename)
       (list->sexps (file->list filename) (λ _ _) "syntax error:"))
 
@@ -149,4 +157,9 @@
         ((_ verbose? ((arg ... exp) ...) . body)
          (lets ((arg ... (if verbose? (with-timer (arg ...) exp) exp)) ...)
            . body))))
+
+    (define (apply* f l)
+      (if (> (len l) 5)
+          (exported-eval `(,f ,@l) *toplevel*)
+          (apply f l)))
     ))

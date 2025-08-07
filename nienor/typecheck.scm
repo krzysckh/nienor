@@ -10,6 +10,9 @@
    typecheck)
 
   (begin
+    ;; ugly hack for recursion
+    (define *max-typecheck-depth* 8)
+
     (define *effect-table*
       (list->ff ; TODO: check if true
        ;; nam takes returns
@@ -111,7 +114,7 @@
            (car* l)
            (cdr* l))))
 
-    (define (typecheck-funcall funcall fun-name arg-types env)
+    (define (typecheck-funcall funcall fun-name arg-types env error*)
       ;; (print "typecheck-funcall " funcall ": "  fun-name " " arg-types)
       (if-lets ((argT resT (types-of fun-name env)))
         (if (has? special fun-name)
@@ -123,21 +126,21 @@
                ((and (null? got) (null? required))
                 (if (eq? 'Void resT) #f resT))
                ((or (null? got) (null? required))
-                (error (format #f "Invalid arity in function call `~a' — expected ~a, got ~a" funcall argT arg-types)
-                       "Function declared as"
-                       (format #f "  ~a :: ~a" fun-name (types->declaration (append argT (list resT))))
-                       "Used as"
-                       (format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))))
+                (error* `(,(format #f "Invalid arity in function call `~a' — expected ~a, got ~a" funcall argT arg-types)
+                          "Function declared as"
+                          ,(format #f "  ~a :: ~a" fun-name (types->declaration (append argT (list resT))))
+                          "Used as"
+                          ,(format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT)))))))
                (else
                 (if (or (eq? (car required) 'Any)
                         (has? (assoc (car got) association-table) (car required)))
                     (loop (cdr required) (cdr got))
-                    (error (format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall argT arg-types)
-                           "Function declared as"
-                           (format #f "  ~a :: ~a" fun-name (types->declaration (append argT (list resT))))
-                           "Used as"
-                           (format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))
-                           (format #f "~a cannot be treated as ~a" (car got) (car required)))
+                    (error* `(,(format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall argT arg-types)
+                              "Function declared as"
+                              ,(format #f "  ~a :: ~a" fun-name (types->declaration (append argT (list resT))))
+                              "Used as"
+                              ,(format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))
+                              ,(format #f "~a cannot be treated as ~a" (car got) (car required))))
                     )))))))
 
     (define (lwalk walk l stack types)
@@ -147,8 +150,10 @@
             (lets ((stack types (walk stack types (car l))))
               (loop stack types (cdr l))))))
 
-    (define (walk-typecheck defun env skip)
-      ;; (print "walk typecheck " defun)
+    (define (walk-typecheck defun env skip name->defun error* depth)
+      ;; (print "Walk typecheck " (cadr defun) " w/ depth " depth)
+      (when (> depth *max-typecheck-depth*)
+        (skip "max typecheck depth exceeded"))
       (lets ((name (cadr   defun))
              (args (caddr  defun))
              (body (cadddr defun))
@@ -164,7 +169,6 @@
                      ((null? code) (values stack types))
                      ((imm? code)  (values (cons (imm->type code env types) stack) types))
                      ((and (list? code) (eq? (car code) 'uxn-call!))
-                      ;; (print 'yup)
                       (if (equal? '(2) (cadr code))
                           (if-lets ((info (get *effect-table* (caddr code) #f))
                                     (takes (car info))
@@ -186,9 +190,9 @@
                       (let* ((locals (reverse (cadr code)))
                              (n (len locals)))
                         (when (< (len stack) n)
-                          (error (format #f "Cannot allocate locals `~a' in expression ~a." locals code)
-                                 (format #f "Type stack: ~a" stack)
-                                 (format #f "     Types: ~a" (ff->list types))))
+                          (error* `(,(format #f "Cannot allocate locals `~a' in expression ~a." locals code)
+                                    ,(format #f "Type stack: ~a" stack)
+                                    ,(format #f "     Types: ~a" (ff->list types)))))
                         (lwalk
                          walk
                          (caddr code)
@@ -202,38 +206,62 @@
                           (zip cons (take stack n) locals)))))
                      ((and (list? code) (has? special (car code)))
                       (values stack types))
-                     ((and (list? code) (has? '(_tailcall! _tailcall-fast!) (car code)))
-                      (lets ((stack types (walk stack types `(_begin ,(reverse (caddr code))))))
-                        ;; TODO: typecheck if it's really calling a function
-                        (values
-                         (if-lets ((T (typecheck-funcall `(,(cadr code) ,@(caddr code)) (cadr code) (take stack (len (caddr code))) env)))
-                           (cons T stack)
-                           stack)
-                         types)))
+                     ((and (list? code) (has? '(_tailcall! _tailcall-fast!) (car code))) ; pass typecheck as a normal funcall
+                      (walk stack types `(,(cadr code) ,@(caddr code))))
                      ((list? code)
                       (lets ((stack types (walk stack types `(_begin ,(reverse (cdr code))))))
                         ;; TODO: typecheck if it's really calling a function
-                        (values
-                         (if-lets ((T (typecheck-funcall code
-                                                         (and (imm? (car code)) (car code))
-                                                         (take stack (len (cdr code))) env)))
-                           (cons T stack)
-                           stack)
-                         types)))
+                        (lets ((T (typecheck-funcall
+                                   code
+                                   (and (imm? (car code)) (car code))
+                                   (take stack (len (cdr code))) env error*)))
+                          (if-lets ((defun (and (imm? (car code)) (name->defun (car code)))))
+                            (call/cc
+                             (λ (skip)
+                               (lets ((err (call/cc
+                                            (λ (err*)
+                                              (walk-typecheck
+                                               (name->defun (car code))
+                                               (put env 'tcheck
+                                                    (put (get env 'tcheck empty)
+                                                         (car code)
+                                                         (ff 'args (take stack (len (cdr code)))
+                                                             'result (get (get (get env 'tcheck empty) (car code) empty) 'result 'Any))))
+                                               skip
+                                               name->defun
+                                               err*
+                                               (+ depth 1))))))
+                                 (when (not (eq? 'ok err))
+                                   (error* (append err `(,(format #f "Called in ~a as `~a'" (car code) code)))))))))
+                          (values
+                           (if T (cons T stack) stack)
+                           types))))
                      (else
-                      (error "WTF (what that funcall):" code))))))
+                      (error* "WTF (what that funcall):" code))))))
           (lets ((_1 _2 (lwalk walk body #n (if argT (list->ff (zip cons args argT)) empty))))
             'ok))))
 
     (define (typecheck code env)
-      (let ((defuns (code->defuns code))
-            (walk (λ (code) (walk-typecheck code env))))
-        (let loop ((defuns defuns))
-          (if (null? defuns)
-              #t
-              (begin
-                (if-lets ((reason (call/cc (λ (skip) (walk-typecheck (car defuns) env skip)))))
-                  (when (and (verbose? env) (not (eq? reason 'ok)))
-                    (format stdout "    [typecheck] skipped defun ~a because \"~a\"~%" (cadar defuns) reason)))
-                (loop (cdr defuns)))))))
+      (let* ((defuns (code->defuns code))
+             (name->defun (λ (name)
+                            (let loop ((defuns defuns))
+                              (if (null? defuns)
+                                  #f
+                                  (if (eq? (cadar defuns) name)
+                                      (car defuns)
+                                      (loop (cdr defuns))))))))
+
+        (lets ((err
+                (call/cc
+                 (λ (err)
+                   (let loop ((defuns defuns))
+                     (if (null? defuns)
+                         'ok
+                         (begin
+                           (if-lets ((reason (call/cc (λ (skip) (walk-typecheck (car defuns) env skip name->defun err 0)))))
+                             (when (and (verbose? env) (not (eq? reason 'ok)))
+                               (format stdout "    [typecheck] skipped defun ~a because \"~a\"~%" (cadar defuns) reason)))
+                           (loop (cdr defuns)))))))))
+          (when (not (eq? 'ok err))
+            (apply* error err)))))
     ))
