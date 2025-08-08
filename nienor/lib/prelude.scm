@@ -8,6 +8,7 @@
 ;; ...or main in C
 ;; ...or WinMain in microsoft C
 
+(set-metadata! *METADATA*)
 (malloc/init)
 (main)
 (brk!)
@@ -132,7 +133,7 @@
 (define-macro-rule ()
   (deo2-with arg at)
   (begin
-    arg at (uxn-call! () nip) (deo2!)))
+    arg (_push! byte at) (deo2!)))
 
 (define-macro-rule ()
   (define-simple-deo name addr)
@@ -146,12 +147,14 @@
     (name _arg)
     (deo2-with _arg addr)))
 
+(define-simple-deo2 set-metadata! #x06)
+
 (define-macro-rule ()
   (define-binop name uxn-op . modes)
   (flatten!
    (define-macro-rule ()
-     (name _arg1 . argn)
-     (name _arg1 (name . argn)))
+     (name arg1 arg2 . argn)
+     (name (name arg1 arg2) . argn))
 
    (define-macro-rule (_)
      (name _arg1 _arg2)
@@ -223,13 +226,7 @@
   (if exp (begin . body) (begin)))
 
 (define-binop + add 2)
-
-;; TODO: - doesn't work correctly
-;; (define-binop - sub 2)
-(define-macro-rule ()
-  (- a b)
-  (begin a b (uxn-call! (2) sub)))
-
+(define-binop - sub 2)
 (define-binop * mul 2)
 (define-binop / div 2)
 (define-binop band and 2)
@@ -805,3 +802,10 @@
 (define-macro-rule (-> _)
   (define-signature func (_ . types) t1 -> . rest)
   (define-signature func (_ t1 . types) . rest))
+
+(define-macro-rule ()
+  (metadata! . strings)
+  (in-epilogue!
+   (flatten!
+    (alloc! *METADATA* 0 . strings)
+    (nalloc! *METADATA-FINISH* 1))))

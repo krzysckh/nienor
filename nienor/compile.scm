@@ -550,6 +550,8 @@
                                                                     ((pair? body) (cons (walk (car body)) (walk (cdr body))))
                                                                     (else
                                                                      (if (eq? body b) g body))))))))
+        ((embed)                 (embed file)              ,(λ (vs)
+                                                              (file->list (cdr (assoc 'file vs)))))
         ))
 
 
@@ -568,24 +570,28 @@
                      (epilogue (get env 'epilogue #n))
                      (env (put env 'epilogue #n))
                      (full-lst (append full-lst lst)))
-          (if (null? epilogue)
-              (begin
-                (kill-gensym!)
-                (typecheck full-lst env)
-                (if only-expand-macros
-                    (only-expand-macros full-lst env)
-                    (values env (resolve
-                                 (put env 'labels (put (get env 'labels empty) '*compiler-end* at))
-                                 (append code code*) with-debug?))))
-              (loop
-               epilogue at
-               (append code code*)
-               env full-lst
-               (append
-                keep
-                (map
-                 (C ref 2)
-                 (filter (λ (x) (eq? (ref x 1) 'unresolved-symbol)) code*))))))))
+          (let ((epilogue
+                 (if (and (null? epilogue) (not (get (get env 'labels empty) '*METADATA* #f)))
+                     '((metadata! "compiled with nienor.\nno more metadata specified.\nblame the author."))
+                     epilogue))) ; <- TODO: this is a really ugly hack to get metadata at 0x100
+            (if (null? epilogue)
+                (begin
+                  (kill-gensym!)
+                  (typecheck full-lst env)
+                  (if only-expand-macros
+                      (only-expand-macros full-lst env)
+                      (values env (resolve
+                                   (put env 'labels (put (get env 'labels empty) '*compiler-end* at))
+                                   (append code code*) with-debug?))))
+                (loop
+                 epilogue at
+                 (append code code*)
+                 env full-lst
+                 (append
+                  keep
+                  (map
+                   (C ref 2)
+                   (filter (λ (x) (eq? (ref x 1) 'unresolved-symbol)) code*)))))))))
 
     (define *prelude*
       (append

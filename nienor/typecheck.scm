@@ -121,7 +121,7 @@
             (if (verbose? env)
                 (begin (format stdout "    [typecheck] cannot typecheck `~a' — special funcall" funcall) #t)
                 #t)
-            (let loop ((required argT) (got arg-types))
+            (let loop ((required argT) (got arg-types) (arg (cdr* funcall)))
               (cond
                ((and (null? got) (null? required))
                 (if (eq? 'Void resT) #f resT))
@@ -134,13 +134,13 @@
                (else
                 (if (or (eq? (car required) 'Any)
                         (has? (assoc (car got) association-table) (car required)))
-                    (loop (cdr required) (cdr got))
+                    (loop (cdr required) (cdr got) (cdr* arg))
                     (error* `(,(format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall argT arg-types)
                               "Function declared as"
                               ,(format #f "  ~a :: ~a" fun-name (types->declaration (append argT (list resT))))
                               "Used as"
                               ,(format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))
-                              ,(format #f "~a cannot be treated as ~a" (car got) (car required))))
+                              ,(format #f "~a~a cannot be treated as ~a" (car got) (if arg (str " `" (car arg) "'") "") (car required))))
                     )))))))
 
     (define (lwalk walk l stack types)
@@ -209,12 +209,12 @@
                      ((and (list? code) (has? '(_tailcall! _tailcall-fast!) (car code))) ; pass typecheck as a normal funcall
                       (walk stack types `(,(cadr code) ,@(caddr code))))
                      ((list? code)
-                      (lets ((stack types (walk stack types `(_begin ,(reverse (cdr code))))))
+                      (lets ((stack types (walk stack types `(_begin ,(cdr code)))))
                         ;; TODO: typecheck if it's really calling a function
                         (lets ((T (typecheck-funcall
                                    code
                                    (and (imm? (car code)) (car code))
-                                   (take stack (len (cdr code))) env error*)))
+                                   (reverse (take stack (len (cdr code)))) env error*)))
                           (if-lets ((defun (and (imm? (car code)) (name->defun (car code)))))
                             (call/cc
                              (λ (skip)
@@ -225,7 +225,7 @@
                                                (put env 'tcheck
                                                     (put (get env 'tcheck empty)
                                                          (car code)
-                                                         (ff 'args (take stack (len (cdr code)))
+                                                         (ff 'args (reverse (take stack (len (cdr code))))
                                                              'result (get (get (get env 'tcheck empty) (car code) empty) 'result 'Any))))
                                                skip
                                                name->defun
