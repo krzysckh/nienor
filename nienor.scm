@@ -62,7 +62,7 @@
        (cond
         (macroexpand?
          (lets ((_ env (call/cc2 (λ (c) (n/compile (n/attach-prelude ()) #f c verbose?)))))
-           (lets ((_ l (n/expand-macros (list (read macroexpand?)) env))
+           (lets ((_ l (n/expand-macros `((flatten! ,@(string->sexps macroexpand?))) env))
                   (l env (call/cc2 (λ (c) (n/compile l #f c verbose? env)))))
              (for-each
               (λ (e)

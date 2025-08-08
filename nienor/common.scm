@@ -7,6 +7,7 @@
 
   (export
    file->sexps
+   string->sexps
    empty-env
    warn
    error
@@ -136,6 +137,9 @@
 
     (define (file->sexps filename)
       (list->sexps (file->list filename) (λ _ _) "syntax error:"))
+
+    (define (string->sexps s)
+      (list->sexps (string->bytes s) (λ _ _) "syntax error:"))
 
     ;; where app = add-macro or alike
     (define (add-macros app lst env)
