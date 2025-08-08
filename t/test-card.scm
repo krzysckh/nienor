@@ -3,7 +3,7 @@
 
 (define *font-size* 12)
 
-(defvar xor 98)
+(defvar xor 32)
 (defvar frame-ctr 0)
 
 (defvar data-1)
@@ -24,7 +24,7 @@
   (let ((loop (λ (loop data x) ; poor man's letrec w/ no tailcalls
                 (when data
                   (let ((it (car data)))
-                    (uf2/vputs font (+ x 1) (+ y 1) (cdr it) layer-0 color-4)
+                    ;; (uf2/vputs font (+ x 1) (+ y 1) (cdr it) layer-0 color-4)
                     (uf2/vputs font x y (cdr it) layer-1 (car it))
                     (loop
                      loop
@@ -39,7 +39,7 @@
   (loopn (y 0 *height* 1)
     (loopn (x 0 *width* 1)
       (when (not (f x y))
-        (draw-pixel! x y color-2))))
+        (draw-pixel! x y color-4))))
   (print-data (- *height* *font-size* 8) data-1)
   (print-data (- *height* *font-size* 8 *font-size* 8) data-2)
   (print-data (- *height* *font-size* 8 *font-size* 8 *font-size* 8) data-3)
@@ -47,7 +47,7 @@
 
 (define (main)
   (set-screen-size! *width* *height*)
-  (set-colors! #x2de4 #x2d04 #x2d04)
+  (set-colors! #x2de8 #x2d08 #x2d08)
   (print-number font)
   (set-draw-handler! draw)
   (set! data-1
