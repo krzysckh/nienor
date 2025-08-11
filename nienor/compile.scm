@@ -447,6 +447,8 @@
                           rest at
                           env
                           (append acc code))))
+                      ((_typechecker-bogger-off! code)
+                       (loop (append code rest) at env acc))
                       (else ; funcall OR ignored
                        (lets ((func (car* exp))
                               (args (cdr* exp))

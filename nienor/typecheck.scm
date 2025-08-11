@@ -168,6 +168,8 @@
                     (cond
                      ((null? code) (values stack types))
                      ((imm? code)  (values (cons (imm->type code env types) stack) types))
+                     ((and (list? code) (eq? (car code) '_typechecker-bogger-off!))
+                      (skip "asked to bogger off"))
                      ((and (list? code) (eq? (car code) 'uxn-call!))
                       (if (equal? '(2) (cadr code))
                           (if-lets ((info (get *effect-table* (caddr code) #f))

@@ -809,3 +809,7 @@
    (flatten!
     (alloc! *METADATA* 0 . strings)
     (nalloc! *METADATA-FINISH* 1))))
+
+(define-macro-rule ()
+  (typechecker-bogger-off! . rest)
+  (_typechecker-bogger-off! rest))
