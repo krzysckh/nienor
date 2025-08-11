@@ -1,3 +1,6 @@
+(_declare-test
+ output => "oops\n")
+
 (define-signature add2 Number -> Number -> Number)
 (define (add2 a b)
   (+ a b))
