@@ -13,8 +13,10 @@
    compile-file)
 
   (begin
-    (define (gensym)
-      (interact 'gensym '_))
+    (define (gensym . v)
+      (if (null? v)
+          (interact 'gensym (tuple 'with-hint '_))
+          (interact 'gensym (tuple 'with-hint (car v)))))
 
     (define (start-gensym!)
       (thread
@@ -24,8 +26,8 @@
            (tuple-case v
              ((exit!)
               (mail who 'ok))
-             (else
-              (mail who (string->symbol (str "@@gensym__" n)))
+             ((with-hint x)
+              (mail who (string->symbol (str "@@gensym_" x "_" n)))
               ;; was: (mail who (string->symbol (str "g" n)))
               ;; i had a crazy bug where i named a variable g1 & g2 and it freaked out on an if statement
               ;; which - coincidentally - is the only piece of codegen that uses gensyms
@@ -33,8 +35,25 @@
               ;; TODO: use temporary labels in if
               (loop (+ n 1))))))))
 
-    (define (kill-gensym!)
-      (interact 'gensym (tuple 'exit!)))
+    (define (start-string-interner!)
+      (thread
+       'string-intern ; would call it 'intern, but it's already used by owl
+       (let loop ((strings #n)) ; not a ff, as it would require a string->symbol, and that's ugly
+         (lets ((who v (next-mail)))
+           (tuple-case v
+             ((intern s)
+              (if-lets ((sym (cdr* (assoc s strings))))
+                (begin
+                  (mail who sym)
+                  (loop strings))
+                (let ((sym (gensym 'string-interner)))
+                  (mail who sym)
+                  (loop (cons (cons s sym) strings)))))
+             (else
+              (error "Big oops, unknown string interner query" v)))))))
+
+    (define (intern s)
+      (interact 'string-intern (tuple 'intern s)))
 
     (define (bior* . l) (fold bior 0 l))
 
@@ -114,40 +133,42 @@
                              (add-label env name at)
                              (append acc (with-comment `("nalloc!" ,name ,n-bytes) (tuple 'bytes (make-list n-bytes 0))))))
                       ((_alloc! name exps)
-                       (let* ((tuples
-                              (map
-                               (λ (exp)
-                                 (cond
-                                  ((string? exp)
-                                   (tuple 'bytes (string->bytes exp)))
-                                  ((symbol? exp)
-                                   (tuple 'unresolved-symbol exp (λ (loc) (list (>> (band #xff00 loc) 8) (band #xff loc)))))
-                                  ((number? exp)
-                                   (if (> exp 255)
-                                       (let ((l (list (>> (band #xff00 exp) 8) (band #xff exp))))
-                                         (warn (format #f "_alloc: ~a is > 255, allocating it as 2 bytes. consider doing this explicitly with these values: ~a to silence this warning" exp l))
-                                         (tuple 'bytes l))
-                                       (tuple 'bytes (list exp))))
-                                  (else
-                                   (error (format #f "Unknown expression type of ~a." exp)))))
-                               exps))
-                              (len (fold
-                                    (λ (a b)
-                                      (tuple-case b
-                                        ((bytes l)
-                                         (+ a (len l)))
-                                        ((unresolved-symbol _1 _2)
-                                         (+ a 2))
-                                        (else
-                                         (error "BUG" b))))
-                                    0 tuples)))
-                         (loop rest
-                               (+ at len)
-                               (add-label env name at)
-                               (append
-                                acc
-                                (list (tuple 'commentary `("space allocated for" ,name "(" ,len "bytes )")))
-                                tuples))))
+                       (if (get (get env 'labels empty) name #f)
+                           (loop rest at env acc)
+                           (let* ((tuples
+                                   (map
+                                    (λ (exp)
+                                      (cond
+                                       ((string? exp)
+                                        (tuple 'bytes (string->bytes exp)))
+                                       ((symbol? exp)
+                                        (tuple 'unresolved-symbol exp (λ (loc) (list (>> (band #xff00 loc) 8) (band #xff loc)))))
+                                       ((number? exp)
+                                        (if (> exp 255)
+                                            (let ((l (list (>> (band #xff00 exp) 8) (band #xff exp))))
+                                              (warn (format #f "_alloc: ~a is > 255, allocating it as 2 bytes. consider doing this explicitly with these values: ~a to silence this warning" exp l))
+                                              (tuple 'bytes l))
+                                            (tuple 'bytes (list exp))))
+                                       (else
+                                        (error (format #f "Unknown expression type of ~a." exp)))))
+                                    exps))
+                                  (len (fold
+                                        (λ (a b)
+                                          (tuple-case b
+                                            ((bytes l)
+                                             (+ a (len l)))
+                                            ((unresolved-symbol _1 _2)
+                                             (+ a 2))
+                                            (else
+                                             (error "BUG" b))))
+                                        0 tuples)))
+                             (loop rest
+                                   (+ at len)
+                                   (add-label env name at)
+                                   (append
+                                    acc
+                                    (list (tuple 'commentary `("space allocated for" ,name "(" ,len "bytes )")))
+                                    tuples)))))
                       ((codegen-at! ptr)
                        (loop rest ptr env (append acc (list (tuple 'codegen-at ptr)))))
                       ((_push! mode value) ; TODO: use which-local
@@ -213,7 +234,7 @@
                                             (at code env (f env)))
                                        (values env at code)))
                                     ((string? value)
-                                     (let ((name (gensym))
+                                     (let ((name (intern value))
                                            (resolve (λ (loc) `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc)))))
                                        (values
                                         (put env 'epilogue (append (get env 'epilogue #n) `((_alloc! ,name (,value 0)))))
@@ -281,8 +302,8 @@
                       ((if arg then else)
                        (lets ((func (car* exp))
                               (args (cdr* exp))
-                              (end (gensym))
-                              (then-loc (gensym))
+                              (end (gensym 'if-end))
+                              (then-loc (gensym 'if-then))
                               (f (codegen at `(,arg
                                                (uxn-call! () ora) ; <- arg is a short - we OR it to get any truthy values into one byte
                                                (_push! _ ,then-loc)
@@ -309,14 +330,14 @@
                       ((_λ args body)
                        (let ((used-locals (intersect (get env 'locals #n) (code->used-symbols body))))
                          (if (null? used-locals)
-                             (let ((name (gensym)) ; a normal lambda
+                             (let ((name (gensym 'normal-lambda)) ; a normal lambda
                                    (resolve (λ (loc) `(,(short! LIT) ,(>> (band #xff00 loc) 8) ,(band #xff loc)))))
                                (loop
                                 rest
                                 (+ at 3)
                                 (put env 'epilogue (append (get env 'epilogue #n) `((_defun ,name ,args ,body))))
                                 (append acc (with-comment `(λ ,name ,args) (tuple 'unresolved-symbol name resolve)))))
-                             (lets ((name (gensym)) ; FUCK! it's a closure
+                             (lets ((name (gensym 'closure-lambda)) ; FUCK! it's a closure
                                     (func `((_defun ,name (,@used-locals ,@args) ,body)))
                                     (clos-size (+ (* (len used-locals) 3) 4))
                                     (resolve1 (λ (loc)                                                     ; loc = malloc
@@ -543,7 +564,7 @@
         ((with-gensym)           (with-gensym bind . body) ,(λ (vs) ; VERY UNSAFE
                                                               (let ((b (cdr (assoc 'bind vs)))
                                                                     (body (cdr (assoc 'body vs)))
-                                                                    (g (gensym)))
+                                                                    (g (gensym 'user)))
                                                                 (append
                                                                  '(begin)
                                                                  (let walk ((body body))
@@ -561,6 +582,7 @@
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
     (define (compile lst with-debug? only-expand-macros verbose? . env)
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
+      (start-string-interner!)
 
       (let loop ((lst lst) (at #x100) (code #n)
                  (env (if (null? env) (put (add-macros add-macro *compiler-macros* empty-env) 'verbose? verbose?) (car env)))
@@ -578,7 +600,6 @@
                      epilogue))) ; <- TODO: this is a really ugly hack to get metadata at 0x100
             (if (null? epilogue)
                 (begin
-                  (kill-gensym!)
                   (typecheck full-lst env)
                   (if only-expand-macros
                       (only-expand-macros full-lst env)
