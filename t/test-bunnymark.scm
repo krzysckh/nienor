@@ -49,6 +49,7 @@
   (set-colors! #x0f00 #x00f0 #x000f)
   (set! first-bun (make-bunny*)))
 
+(define-signature add-bunny Pointer -> Void)
 (define (add-bunny start)
   (if (bunny-next start)
       (add-bunny (bunny-next start))
@@ -56,6 +57,7 @@
         (set! n-bnus (+ n-bnus 1))
         (set-bunny-next! start (make-bunny*)))))
 
+(define-signature draw-bunnies Pointer -> Void)
 (define (draw-bunnies bun)
   (when bun
     (let ((x (bunny-x bun))

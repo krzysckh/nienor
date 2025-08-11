@@ -669,6 +669,7 @@
 
 (defvar *threads*)
 
+(define-signature _run-threads Pointer -> Number -> Number)
 (define (_run-threads thr n)
   (if thr
       (if (uxn-ticker (thread-uxn thr))
@@ -678,11 +679,13 @@
           (_run-threads (thread-next thr) n))
       n))
 
+(define-signature start-thread-controller Void)
 (define (start-thread-controller)
   (when *threads*
     (when (> (_run-threads *threads* 0) 0)
       (start-thread-controller))))
 
+(define-signature _add-thread Pointer -> Pointer -> Void)
 (define (_add-thread thunk cur)
   (if *threads*
       (if (thread-next cur)

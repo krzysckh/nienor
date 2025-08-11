@@ -5,19 +5,21 @@
  (owl format)
  (nienor common)
  (prefix (nienor dis) d/)
+ (prefix (nienor typecheck) n/)
  (prefix (nienor compile) n/))
 
 (define command-line-rules
   (cl-rules
    `((help   "-h" "--help")
-     (output "-o" "--output"            has-arg comment "target file"               default "a.out")
-     (emacro "-m" "--expand-macros"             comment "only expand and dump macros")
-     (M      "-M" "--macroexpand"       has-arg comment "expand one macro (the argument) and exit")
-     (dump   "-D" "--dump"                      comment "compile & disassemble to uxntal")
-     (V      "-V" "--verbose"                   comment "be verbose")
-     (q      "-q" "--quiet"                     comment "be quiet")
-     (s      "-s" "--dump-symbol-table"         comment "dump symbol table to file")
-     (sf     "-S" "--symbol-table-file" has-arg comment "set symbol table filename" default "a.out.sym")
+     (output "-o" "--output"              has-arg comment "target file"               default "a.out")
+     (emacro "-m" "--expand-macros"               comment "only expand and dump macros")
+     (M      "-M" "--macroexpand"         has-arg comment "expand one macro (the argument) and exit")
+     (dump   "-D" "--dump"                        comment "compile & disassemble to uxntal")
+     (V      "-V" "--verbose"                     comment "be verbose")
+     (q      "-q" "--quiet"                       comment "be quiet")
+     (s      "-s" "--dump-symbol-table"           comment "dump symbol table to file")
+     (sf     "-S" "--symbol-table-file"   has-arg comment "set symbol table filename" default "a.out.sym")
+     (dtype  "-T" "--disable-typechecker"         comment "disable typechecker entirely")
      )))
 
 (define (print-used-labels env)
@@ -40,6 +42,11 @@
     (get env 'labels empty))
    out))
 
+(define (print-inferred-functions env)
+  (let ((fs (filter (λ (x) (get (cdr x) 'inferred #f)) (ff->list (get env 'tcheck empty)))))
+    (print "Inferred definitions:")
+    (for-each (λ (x) (format stdout "  ~a~%" (n/render-func x env))) (map car fs))))
+
 (λ (args)
   (process-arguments
    (cdr args) command-line-rules "you lose"
@@ -56,14 +63,15 @@
             (symt (get opt 's #f))
             (quiet? (get opt 'q #f))
             (macroexpand? (get opt 'M #f))
+            (disT? (get opt 'dtype #f))
             (dump (get opt 'dump #f)))
        (when (and quiet? verbose?)
          (error "Cannot specify both --quiet and --verbose. You lose."))
        (cond
         (macroexpand?
-         (lets ((_ env (call/cc2 (λ (c) (n/compile (n/attach-prelude ()) #f c verbose?)))))
+         (lets ((_ env (call/cc2 (λ (c) (n/compile (n/attach-prelude ()) #f c verbose? disT?)))))
            (lets ((_ l (n/expand-macros `((flatten! ,@(string->sexps macroexpand?))) env))
-                  (l env (call/cc2 (λ (c) (n/compile l #f c verbose? env)))))
+                  (l env (call/cc2 (λ (c) (n/compile l #f c verbose? disT? env)))))
              (for-each
               (λ (e)
                 (let ((s (str* e)))
@@ -77,24 +85,26 @@
          (cond
           (mac
            ;; TODO: generalize -o -
-           (lets ((l _ (call/cc2 (λ (c) (n/compile (n/attach-prelude (file->sexps (car extra))) #f c verbose?)))))
+           (lets ((l _ (call/cc2 (λ (c) (n/compile (n/attach-prelude (file->sexps (car extra))) #f c verbose? disT?)))))
              (for-each print l)))
           (dump
            (let ((f (if (equal? out "-")
                         stdout
                         (open-output-file out))))
-             (d/disassemble-file (car extra) f)
+             (d/disassemble-file (car extra) f disT?)
              (when (not (eq? f stdout))
                (close-port f))))
           (else
-           (lets ((env data (n/compile-file (car extra) verbose?))
+           (lets ((env data (n/compile-file (car extra) verbose? disT?))
                   (n-labels (ff-fold (λ (a k v) (+ a 1)) 0 (get env 'labels empty))))
              (unless quiet?
                (format stdout "Assembled ~a in ~aB (~,2f% used), ~a labels~%"
                        out
                        (format-number-base2 (len data))
                        (* 100 (/ (len data) (<< 1 16)))
-                       n-labels))
+                       n-labels)
+               (when verbose?
+                 (print-inferred-functions env)))
              ;; TODO: delete unused labels so i can show them here
              ;; (when v
              ;;   (print-used-labels env))

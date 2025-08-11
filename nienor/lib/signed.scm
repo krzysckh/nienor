@@ -1,3 +1,4 @@
+(define-signature _print-signed-number Any -> Number -> Void)
 (define (_print-signed-number n depth)
   (when (sign n)
     (putchar #\-))

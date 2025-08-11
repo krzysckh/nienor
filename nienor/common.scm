@@ -104,7 +104,8 @@
         (put 'arity    empty) ; ff of defun-name -> arity for simple arity checking ;; <- TODO: move this somewhere else
         (put 'symbols  empty) ; ff of symbol-name -> id
         (put 'verbose? #f)    ; self explanatory
-        (put 'tcheck   empty) ; ff of function-name -> ff of args=(T ...) result=T'
+        (put 'tcheck   empty) ; ff of function-name -> ff of args=(T ...) result=T' inferred=#t|#f
+        (put 'tcheckd  empty) ; ff of function-name -> list of ((T ...) ...)
         ))
 
     (define imm? (B not pair?))

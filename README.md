@@ -102,6 +102,7 @@ Run: Ended.
 ### TCO
 
 ```scheme
+(define-signature test-call-stack Number -> Number)
 (define (test-call-stack n)
   ;; (print-number n) ; <- uncomment this to get a countdown from #xffff to 0
   (if (equ? n 0)
@@ -128,4 +129,19 @@ might have counterparts that free the arguments after usage.
   (print-list l)) ; => (1 2 3 4)
 ;; The append/ function runs append, and frees the args passed to it. If you only wish to free
 ;; one of the arguments, you have to manage the memory yourself. To free a list use (free-list ...)
+```
+
+### Type checking
+
+There's a simple typechecker implemented that can catch some errors at compile-time.
+If it's misbehaving, it may be fully disabled with `--disable-typechecker`.
+
+```scheme
+(define-signature f Number -> String)
+(define (f x)
+  x)
+
+(define (main)
+  (f 0)
+  (exit!))
 ```

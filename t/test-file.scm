@@ -4,7 +4,7 @@
 (alloc! data "pozdrowienia" 0)
 
 (define-signature ptr->str Pointer -> String)
-(define (ptr->str b) b)
+(define (ptr->str b) (typechecker-bogger-off! b)) ; LMAO
 
 (define (main)
   (let ((fname "/tmp/test")

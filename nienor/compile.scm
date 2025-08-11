@@ -514,6 +514,7 @@
               ((_define-signature func-name types ret)
                ; (format stdout "signature for ~a: ~a -> ~a~%" func-name types ret)
                (let ((ff (pipe empty
+                           (put 'inferred #f)
                            (put 'args types)
                            (put 'result ret))))
                  (loop (cdr exp) (put env 'tcheck (put (get env 'tcheck empty) func-name ff)) acc (+ substitutions 1))))
@@ -580,7 +581,7 @@
 
     ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
-    (define (compile lst with-debug? only-expand-macros verbose? . env)
+    (define (compile lst with-debug? only-expand-macros verbose? disable-typechecker? . env)
       (start-gensym!) ; a toplevel thread didn't seem to compile correctly
       (start-string-interner!)
 
@@ -600,12 +601,12 @@
                      epilogue))) ; <- TODO: this is a really ugly hack to get metadata at 0x100
             (if (null? epilogue)
                 (begin
-                  (typecheck full-lst env)
-                  (if only-expand-macros
-                      (only-expand-macros full-lst env)
-                      (values env (resolve
-                                   (put env 'labels (put (get env 'labels empty) '*compiler-end* at))
-                                   (append code code*) with-debug?))))
+                  (let ((env (if disable-typechecker? env (typecheck full-lst env))))
+                    (if only-expand-macros
+                        (only-expand-macros full-lst env)
+                        (values env (resolve
+                                     (put env 'labels (put (get env 'labels empty) '*compiler-end* at))
+                                     (append code code*) with-debug?)))))
                 (loop
                  epilogue at
                  (append code code*)
@@ -627,6 +628,6 @@
     (define (attach-prelude lst)
       (append *prelude* lst))
 
-    (define (compile-file filename verbose?)
-      (compile (attach-prelude (file->sexps filename)) #f #f verbose?))
+    (define (compile-file filename verbose? disT?)
+      (compile (attach-prelude (file->sexps filename)) #f #f verbose? disT?))
     ))

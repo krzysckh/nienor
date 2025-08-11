@@ -249,12 +249,14 @@
   (not x)
   (if x #f #t))
 
+(define-signature > Any -> Any -> Bool)
 (define (> a b)
   a b
   (uxn-call! (2) gth)
   (pus! 0)
   (uxn-call! () swp))
 
+(define-signature < Any -> Any -> Bool)
 (define (< a b)
   a b
   (uxn-call! (2) lth)
@@ -328,6 +330,7 @@
   (eq? a b)
   (equ? a b))
 
+(define-signature _get! Pointer -> Any)
 (define-macro-rule ()
   (get! addr)
   (_get! addr))
@@ -343,11 +346,13 @@
   (addrof var)
   (_addrof var))
 
+(define-signature get8! Pointer -> Any)
 (define (get8! place)
-  (get! place)
-  (uxn-call! () pop)
-  (pus! 0)
-  (uxn-call! () swp))
+  (typechecker-bogger-off!
+   (get! place)
+   (uxn-call! () pop)
+   (pus! 0)
+   (uxn-call! () swp)))
 
 (define-macro-rule ()
   (set8! place value)
@@ -474,6 +479,7 @@
   (loopn (i 0 len 1)
     (set8! (+ dst i) (get8! (+ src i)))))
 
+(define-signature _find-chr Pointer -> Number -> Any -> Number)
 (define (_find-chr p n chr)
   (if (bior (equ? (get8! p) 0) (equ? (get8! p) chr))
       n
@@ -518,7 +524,7 @@
          (p (malloc (+ la lb 1))))
     (memcpy p a la)
     (memcpy (+ p la) b (+ lb 1))
-    p))
+    (typechecker-bogger-off! p))) ; <- TODO: should String == Pointer?
 
 (define-signature string=? String -> String -> Bool)
 (define (string=? a b)
@@ -530,6 +536,7 @@
             (string=? (+ a 1) (+ b 1)))
         #f)))
 
+(define-signature _expt Number -> Number -> Number -> Number)
 (define (_expt _a b a)
   (cond
    ((= b 0) 1)
@@ -557,6 +564,9 @@
   (cond (else . code))
   (cond (#t . code)))
 
+;; this is fucking hilarious
+;; _symbol is not a funcion, but the typechecker will treat it as such
+(define-signature _symbol Any -> Symbol)
 (define-macro-rule ()
   (symbol x)
   (_symbol x))
@@ -610,6 +620,7 @@
   (_define-packed-struct (42 base size) name (thing pack-size) . rest)
   ;;                              ^^^^- additional size in bits after base
   (flatten! ; TODO: i wonder if it's better to have it as macros or functions, they're quite big
+   (define-signature (__append-symbols name - thing) Pointer -> Any)
    (define ((__append-symbols name - thing) struct)
      (if (> pack-size (- 16 (__pad-of size)))
          (compiler-error "Unaligned struct" name "at item" thing "with size" pack-size)
@@ -617,6 +628,7 @@
                    (- (- 16 (__pad-of size)) pack-size))
                (_make-1s pack-size))))
 
+   (define-signature (__append-symbols set- name - thing !) Pointer -> Any -> Void)
    (define ((__append-symbols set- name - thing !) struct value)
      (if (> pack-size (- 16 (__pad-of size)))
          (compiler-error "Unaligned struct" name "at item" thing "with size" pack-size)
@@ -720,15 +732,21 @@
   (length l)
   (_length l 0))
 
+(define-macro-rule ()
+  (pointer->string x)
+  (typechecker-bogger-off! x))
+
+(define-signature _list->string Pointer -> Pointer -> Number -> Void)
 (define (_list->string l p n)
   (when l
     (set8! (+ p n) (car l))
     (_list->string (cdr l) p (+ n 1))))
 
+(define-signature list->string Pointer -> String)
 (define (list->string l)
   (let ((p (malloc (+ (length l) 1))))
     (_list->string l p 0)
-    p))
+    (pointer->string p)))
 
 ;; (define (set-car! cell what)
 ;;   (set! cell what))
@@ -736,6 +754,7 @@
 ;; (define (set-cdr! cell what)
 ;;   (set! (+ cell 2) what))
 
+(define-signature _reverse Pointer -> Pointer -> Pointer)
 (define (_reverse l acc)
   (if l
       (_reverse (cdr l) (cons (car l) acc))
@@ -752,11 +771,13 @@
     (free-list l)
     v))
 
+(define-signature for-each Pointer -> Pointer -> Void)
 (define (for-each f lst)
   (when lst
     (f (car lst))
     (for-each f (cdr lst))))
 
+(define-signature map Pointer -> Pointer -> Pointer)
 (define (map f lst)
   (if lst
       (cons (f (car lst)) (map f (cdr lst)))
@@ -778,6 +799,7 @@
   (map/ f l)
   (f/ map f l))
 
+(define-signature append Pointer -> Pointer -> Pointer)
 (define (append a b)
   (if a
       (cons (car a) (append (cdr a) b))

@@ -3,6 +3,7 @@
   (read-file filename-ptr))
 
 ;; returns x'
+(define-signature uf2/vputc Pointer -> Number -> Number -> Number -> Any -> Any -> Number)
 (define (uf2/vputc font x y chr layer color)
   (let ((w (get8! (+ font chr)))
         (dat (+ font #xff (* chr 4 8))))
@@ -13,6 +14,7 @@
       (sprite! (+ x 8) (+ y 8) (+ dat (* 3 8)) 0 layer 0 0 color))
     (+ x w)))
 
+(define-signature uf2/vputs Pointer -> Number -> Number -> String -> Any -> Any -> Void)
 (define (uf2/vputs font x y str layer color)
   (let ((chr (get8! str)))
     (when (not (equ? chr 0))
@@ -23,6 +25,7 @@
        (+ str 1)
        layer color))))
 
+(define-signature uf2/_measure-text Pointer -> String -> Number -> Number)
 (define (uf2/_measure-text font str w)
   (let ((chr (get8! str)))
     (if (equ? chr 0)
@@ -37,6 +40,7 @@
 (define (vputc chr x y color layer)
   (sprite! x y (+ *atari8* (* 8 chr)) 0 layer 0 0 color))
 
+(define-signature vputs Pointer -> Number -> Number -> Any -> Any -> Void)
 (define (vputs ptr x y color layer)
   (let ((chr (get8! ptr)))
     (when (not (equ? chr 0))
