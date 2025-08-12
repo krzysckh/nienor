@@ -20,6 +20,7 @@
 
     (define *symbols-used-internally* '(main malloc/init malloc *METADATA-FINISH*))
 
+    ;; TODO: why is metadata-finish getting removed?
     (define (code->used-symbols exp)
       (uniq
        (append
@@ -169,6 +170,7 @@
         (pred (cdr (assoc 'b vs)) (cdr (assoc 'a vs)))))
 
     ;; TODO: all these rely too heavily on prelude implemntation
+    ;; TODO: not
     (define constant-folders
       ;; literal                 match                                              replace
       `(((_begin uxn-call! add 2) (_begin (,number?-b ,number?-a (uxn-call! (2) add))) ,(make-folder +))
@@ -177,8 +179,8 @@
         ((_begin uxn-call! ora 2) (_begin (,number?-b ,number?-a (uxn-call! (2) ora))) ,(make-folder bior))
         ((_begin uxn-call! eor 2) (_begin (,number?-b ,number?-a (uxn-call! (2) eor))) ,(make-folder bxor))
         ((_begin uxn-call! and 2) (_begin (,number?-b ,number?-a (uxn-call! (2) and))) ,(make-folder band))
+        ((equ?)                   (equ? ,_imm?-a ,_imm?-b)                             ,(make-folder (λ (a b) (if (equal? a b) 1 0))))
         ((_begin uxn-call! div 2) (_begin (,number?-b ,number?-a (uxn-call! (2) div))) ,(make-folder (λ (a b) (floor (/ a b)))))
-        ((equ?)                   (equ? ,imm?-a ,imm?-b)                               ,(make-folder eqv?))
         ((<) (< ,number?-b ,number?-a) ,(λ (vs) (if ((make-folder <) vs) 1 0)))
         ((>) (> ,number?-b ,number?-a) ,(λ (vs) (if ((make-folder >) vs) 1 0)))
         ((if) (if ,_imm?-a then else) ,(λ (vs) ; compiler-if :P

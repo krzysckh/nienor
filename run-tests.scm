@@ -29,7 +29,7 @@
       1
       (if (eq? 'failure (get vs 'expected-compilation-result #f))
           (begin
-            (format stdout " ^- this is fine, as the 'expected-compilation result of this test was set to ~a~%"
+            (format stdout " ^- this is fine, as the 'expected-compilation-result of this test was set to ~a~%"
                     (str* (get vs 'expected-compilation-result #f)))
             1)
           0)))

@@ -56,6 +56,8 @@
        (print-rules command-line-rules)
        (halt 0))
 
+     (n/initialize-global-threads!)
+
      (let* ((out (get opt 'output #f))
             (mac (get opt 'emacro #f))
             (np (get opt 'np #f))
@@ -69,7 +71,7 @@
          (error "Cannot specify both --quiet and --verbose. You lose."))
        (cond
         (macroexpand?
-         (lets ((_ env (call/cc2 (λ (c) (n/compile (n/attach-prelude ()) #f c verbose? disT?)))))
+         (lets ((_ env (call/cc2 (λ (c) (n/compile (n/attach-prelude ()) #f c verbose? disT? #f)))))
            (lets ((_ l (n/expand-macros `((flatten! ,@(string->sexps macroexpand?))) env))
                   (l env (call/cc2 (λ (c) (n/compile l #f c verbose? disT? env)))))
              (for-each
@@ -85,7 +87,7 @@
          (cond
           (mac
            ;; TODO: generalize -o -
-           (lets ((l _ (call/cc2 (λ (c) (n/compile (n/attach-prelude (file->sexps (car extra))) #f c verbose? disT?)))))
+           (lets ((l _ (call/cc2 (λ (c) (n/compile (n/attach-prelude (file->sexps (car extra))) #f c verbose? disT? #f)))))
              (for-each print l)))
           (dump
            (let ((f (if (equal? out "-")

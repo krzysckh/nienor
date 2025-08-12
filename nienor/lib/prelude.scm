@@ -239,7 +239,11 @@
 
 (define-macro-rule ()
   (and x)
-  (if x #t #f))
+  (if x x #f))
+
+(define-macro-rule ()
+  (or . rest)
+  (bior . rest))
 
 (define-macro-rule ()
   (bnot x)
@@ -835,3 +839,26 @@
 (define-macro-rule ()
   (typechecker-bogger-off! . rest)
   (_typechecker-bogger-off! rest))
+
+;; TODO: actually define types, and not just let any symbol pass
+(define-macro-rule ()
+  (define-type T)
+  (flatten!))
+
+(define-macro-rule ()
+  (define-typing-rules rule . rules)
+  (flatten!
+   (define-typing-rule . rule)
+   (define-typing-rules . rules)))
+
+(define-macro-rule ()
+  (define-typing-rules)
+  (flatten!))
+
+(define-macro-rule (is <=>)
+  (define-typing-rule T1 binding is T2 <=> exp)
+  (_define-typing-rule T1 T2 binding exp))
+
+(define-macro-rule (is <=>)
+  (define-typing-rule T1 is T2)
+  (_define-typing-rule T1 T2 _ #t))

@@ -106,6 +106,8 @@
         (put 'verbose? #f)    ; self explanatory
         (put 'tcheck   empty) ; ff of function-name -> ff of args=(T ...) result=T' inferred=#t|#f
         (put 'tcheckd  empty) ; ff of function-name -> list of ((T ...) ...)
+        (put 'trules   empty) ; ff of t1 -> ff of t2 -> λx -> #t | #f
+        (put '_compile #f)    ; compile function itself (what an ugly hack!) ; TODO: <- wow, this is a hack
         ))
 
     (define imm? (B not pair?))

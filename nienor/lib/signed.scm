@@ -1,4 +1,10 @@
-(define-signature _print-signed-number Any -> Number -> Void)
+(define-type Signed)
+(define-typing-rules
+  (Number is Signed)
+  (Bool   is Signed))
+
+
+(define-signature _print-signed-number Signed -> Number -> Void)
 (define (_print-signed-number n depth)
   (when (sign n)
     (putchar #\-))
@@ -14,6 +20,7 @@
     (_print-signed-number n 0)
     (putchar #\newline)))
 
+(define-signature signed+ Signed -> Signed -> Signed)
 (define (signed+ a b)
   (let ((a (if (sign a) (+ 1 (bxor #xffff (band #x7fff a))) a))
         (b (if (sign b) (+ 1 (bxor #xffff (band #x7fff b))) b)))
@@ -22,6 +29,7 @@
           (+ 1 (bxor #xffff (band #x7fff res)))
           res))))
 
+(define-signature signed- Signed -> Signed -> Signed)
 (define (signed- a b)
   (signed+ a (bxor #x8000 b)))
 
@@ -29,16 +37,19 @@
   (sign x)
   (band #x8000 x))
 
+(define-signature signed* Signed -> Signed -> Signed)
 (define (signed* a b)
   (bior
    (bxor (sign a) (sign b))
    (* (signed a) (signed b))))
 
+(define-signature signed/ Signed -> Signed -> Signed)
 (define (signed/ a b)
   (bior
    (bxor (sign a) (sign b))
    (/ (signed a) (signed b))))
 
+(define-signature signed> Signed -> Signed -> Bool)
 (define (signed> a b)
   (let ((sa (sign a))
         (sb (sign b)))
@@ -85,3 +96,7 @@
 (define-macro-rule ()
   (signed-max2 a b)
   (if (signed> a b) a b))
+
+(define-signature number->signed Number -> Signed)
+(define (number->signed x)
+  (signed x))

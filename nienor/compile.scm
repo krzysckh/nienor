@@ -7,6 +7,7 @@
    (nienor typecheck))
 
   (export
+   initialize-global-threads!
    expand-macros
    attach-prelude
    compile
@@ -497,29 +498,56 @@
                     (loop `((_push! _ ,exp) ,@rest) at env acc) ; if we got an atom, just push it
                     ))))))
 
+    ;; very unsafe… lol
+    (define (walk-change-symbol body sym to)
+      (cond
+       ((null? body) #n)
+       ((pair? body) (cons (walk-change-symbol (car body) sym to) (walk-change-symbol (cdr body) sym to)))
+       (else
+        (if (eq? body sym) to body))))
+
     ;; env exp → env' exp'
     (define (lookup-toplevel-macros env exp)
       (let loop ((exp exp) (env env) (acc #n) (substitutions 0))
         (if (null? exp)
             (values substitutions env acc)
-            (tuple-case (list->tuple (car* exp))
-              ((define-macro-rule literal rule rewrite)
-               (loop (cdr exp) (add-macro env rule rewrite literal) acc (+ substitutions 1)))
-              ((_flatten! code)
-               (loop (append code (cdr exp)) env acc (+ substitutions 1)))
-              ((_include! filename)
-               (loop (append (file->sexps filename) (cdr exp)) env acc (+ substitutions 1)))
-              ((_declare-var! var-name)
-               (loop (cdr exp) (put env 'vars (cons var-name (get env 'vars #n))) acc (+ substitutions 1)))
-              ((_define-signature func-name types ret)
-               ; (format stdout "signature for ~a: ~a -> ~a~%" func-name types ret)
-               (let ((ff (pipe empty
-                           (put 'inferred #f)
-                           (put 'args types)
-                           (put 'result ret))))
-                 (loop (cdr exp) (put env 'tcheck (put (get env 'tcheck empty) func-name ff)) acc (+ substitutions 1))))
-              (else
-               (loop (cdr exp) env (append acc (list (car exp))) substitutions))))))
+            (if (pair? (car* exp))
+                (tuple-case (list->tuple (car* exp))
+                  ((define-macro-rule literal rule rewrite)
+                   (loop (cdr exp) (add-macro env rule rewrite literal) acc (+ substitutions 1)))
+                  ((_flatten! code)
+                   (loop (append code (cdr exp)) env acc (+ substitutions 1)))
+                  ((_include! filename)
+                   (loop (append (file->sexps filename) (cdr exp)) env acc (+ substitutions 1)))
+                  ((_declare-var! var-name)
+                   (loop (cdr exp) (put env 'vars (cons var-name (get env 'vars #n))) acc (+ substitutions 1)))
+                  ((_define-signature func-name types ret)
+                                        ; (format stdout "signature for ~a: ~a -> ~a~%" func-name types ret)
+                   (let ((ff (pipe empty
+                               (put 'inferred #f)
+                               (put 'args (zip cons types (make-list (len types) '__from-type)))
+                               (put 'result ret))))
+                     (loop (cdr exp) (put env 'tcheck (put (get env 'tcheck empty) func-name ff)) acc (+ substitutions 1))))
+                  ((_define-typing-rule T1 T2 binding e)
+                   (let* ((v (get (get env 'trules empty) T1 empty))
+                          (compile (get env '_compile (λ _ (error "BUG: no _compile!"))))
+                          (fn (λ (x env*)
+                                (lets ((val _ (call/cc2 (λ (c) (compile `(,(walk-change-symbol e binding x)) #f c #f #f env*)))))
+                                  (if (or (> (len val) 1) (not (imm? (car* val))))
+                                      (error (format #f "Couldn't resolve typing rule `~a' into a single known value for ~a being `~a'."
+                                                     e binding x)
+                                             (format #f "Result value: ~a" val))
+                                      (car val))))))
+                     (loop (cdr exp)
+                           (put env 'trules
+                                (put (get env 'trules empty)
+                                     T1
+                                     (put v T2 fn)))
+                           acc
+                           (+ substitutions 1))))
+                  (else
+                   (loop (cdr exp) env (append acc (list (car exp))) substitutions)))
+                (loop (cdr exp) env (append acc (list (car exp))) substitutions)))))
 
     (define (expand-macros lst env)
       (lets ((substitutions env* lst (lookup-toplevel-macros env lst)))
@@ -568,25 +596,21 @@
                                                                     (g (gensym 'user)))
                                                                 (append
                                                                  '(begin)
-                                                                 (let walk ((body body))
-                                                                   (cond
-                                                                    ((null? body) #n)
-                                                                    ((pair? body) (cons (walk (car body)) (walk (cdr body))))
-                                                                    (else
-                                                                     (if (eq? body b) g body))))))))
+                                                                 (walk-change-symbol body b g)))))
         ((embed)                 (embed file)              ,(λ (vs)
                                                               (file->list (cdr (assoc 'file vs)))))
         ))
 
+    (define (initialize-global-threads!)
+      (start-gensym!) ; a toplevel thread didn't seem to compile correctly
+      (start-string-interner!))
 
     ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
-    (define (compile lst with-debug? only-expand-macros verbose? disable-typechecker? . env)
-      (start-gensym!) ; a toplevel thread didn't seem to compile correctly
-      (start-string-interner!)
-
+    (define (compile lst with-debug? only-expand-macros verbose? disable-typechecker? env*)
       (let loop ((lst lst) (at #x100) (code #n)
-                 (env (if (null? env) (put (add-macros add-macro *compiler-macros* empty-env) 'verbose? verbose?) (car env)))
+                 (env (or env*
+                          (put (put (add-macros add-macro *compiler-macros* empty-env) 'verbose? verbose?) '_compile compile)))
                  (full-lst #n) (keep #n))
         (lets/timer verbose?
                     ((env lst (expand-macros lst env))
@@ -629,5 +653,5 @@
       (append *prelude* lst))
 
     (define (compile-file filename verbose? disT?)
-      (compile (attach-prelude (file->sexps filename)) #f #f verbose? disT?))
+      (compile (attach-prelude (file->sexps filename)) #f #f verbose? disT? #f))
     ))

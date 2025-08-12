@@ -10,11 +10,10 @@
 (define-signature _print-number Number -> Number -> Void)
 ;; very very inefficient and local-stack exhausting way to print a number
 (define (_print-number n depth)
-  (if (equ? 1 (band (equ? n 0) (> depth 0)))
-      (noop)
-      (begin
-        (_print-number (/ n 10) (+ depth 1)) ; ouch!
-        (putchar (+ #\0 (modulo n 10))))))
+  (when (not (and (eq? n 0) (> depth 0)))
+    (begin
+      (_print-number (/ n 10) (+ depth 1)) ; ouch!
+      (putchar (+ #\0 (modulo n 10))))))
 
 (define-macro-rule ()
   (print-number n)
