@@ -29,7 +29,7 @@
 (define (main)
   ;; TODO: resolve this at runtime rather than compile-time. (make-instance should be a function, not a silly macro)
   (with (make-instance 'point) as pt
-    (print-number pt)) ; immidiately free it afterwards
+    (print pt)) ; immidiately free it afterwards
   (with (make-point*) as pt
     (with (make-point*) as pt2
       (set-point-_y! pt2 2138)
@@ -39,10 +39,10 @@
             (set-y (point-set-y pt)))
         (set-x 10)
         (set-y 20)
-        (print-number (get-x))
-        (print-number (get-y))
+        (print (get-x))
+        (print (get-y))
         (set-y 42)
-        (print-number (get-y))
-        (print-number ((point-get-y pt2)))
+        (print (get-y))
+        (print ((point-get-y pt2)))
         )))
   (exit!))

@@ -52,7 +52,7 @@
 
 (define-macro-rule ()
   (print s)
-  (puts s))
+  (puts (typechecker-bogger-off! s)))
 
 (define-simple-deo2 set-draw-handler! #x20)
 (define-simple-deo2 set-mouse-handler! #x90)

@@ -581,7 +581,12 @@
 
 (define-macro-rule (42)
   (define-struct name . rest)
-  (define-struct (42 0) name . rest))
+  (flatten!
+   (define-type name)
+   (define-typing-rules
+     (name is Pointer)
+     (Pointer is name))
+   (define-struct (42 0) name . rest)))
 
 (define-macro-rule (42)
   (define-struct (42 size) name)
@@ -590,6 +595,7 @@
      (make-instance (quote name))
      ((__append-symbols make- name)))
 
+   (define-signature (__append-symbols make- name) name)
    (define ((__append-symbols make- name))
      (malloc size))))
 
@@ -599,6 +605,7 @@
    (define-macro-rule ()
      ((__append-symbols name - thing) struct)
      (get! (+ struct size)))
+
    (define-macro-rule ()
      ((__append-symbols set- name - thing !) struct value)
      (set! (+ struct size) value))
@@ -624,7 +631,7 @@
   (_define-packed-struct (42 base size) name (thing pack-size) . rest)
   ;;                              ^^^^- additional size in bits after base
   (flatten! ; TODO: i wonder if it's better to have it as macros or functions, they're quite big
-   (define-signature (__append-symbols name - thing) Pointer -> Any)
+   (define-signature (__append-symbols name - thing) name -> Any)
    (define ((__append-symbols name - thing) struct)
      (if (> pack-size (- 16 (__pad-of size)))
          (compiler-error "Unaligned struct" name "at item" thing "with size" pack-size)
@@ -632,7 +639,7 @@
                    (- (- 16 (__pad-of size)) pack-size))
                (_make-1s pack-size))))
 
-   (define-signature (__append-symbols set- name - thing !) Pointer -> Any -> Void)
+   (define-signature (__append-symbols set- name - thing !) name -> Any -> Void)
    (define ((__append-symbols set- name - thing !) struct value)
      (if (> pack-size (- 16 (__pad-of size)))
          (compiler-error "Unaligned struct" name "at item" thing "with size" pack-size)
@@ -652,6 +659,7 @@
      (make-instance (quote name))
      ((__append-symbols make- name)))
 
+   (define-signature (__append-symbols make- name) name)
    (define ((__append-symbols make- name))
      (malloc (+ base (/ size 8) 1)))))
 
