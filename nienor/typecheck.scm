@@ -313,7 +313,8 @@
                     (error* `(,(format #f "Type mismatch in return value of function `~a'." name)
                               "Function declared as"
                               ,(format #f "  ~a :: ~a" name (types->declaration (append (map car argT) (list resT))))
-                              ,(format #f "With invalid return value deduced to be of type ~a" T))))
+                              ,(format #f "With invalid return value deduced to be of type ~a" T)
+                              ,(format #f "Which cannot be treated as ~a" resT))))
                 (let ((ff (pipe empty
                             (put 'args (make-list (len args) '(Any . __from-type)))
                             (put 'result T)
