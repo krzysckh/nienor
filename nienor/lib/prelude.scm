@@ -689,6 +689,7 @@
   (cdr v)
   (Cell-cdr v))
 
+(define-signature _print-list Pointer -> Void)
 (define (_print-list l)
   (when l
     (print-number* (car l))
@@ -721,12 +722,14 @@
   (let loop ((key val) . rest) . body)
   (_let-loop loop (_ key) (_ val) (_ . rest) . body))
 
+(define-signature free-list Pointer -> Void)
 (define (free-list l)
   (when l
     (if (cdr l)
         (free-list (cdr l))
         (free l))))
 
+(define-signature _length Pointer -> Number -> Number)
 (define (_length l n)
   (if l
       (_length (cdr l) (+ n 1))

@@ -203,6 +203,8 @@
                           (skip `("bad uxn-call in" ,code))))
                      ((and (list? code) (eq? (car code) '_λ))
                       (values (cons '(Pointer . 'λ) stack) types))
+                     ((and (list? code) (eq? (car code) '_get!))
+                      (values (cons '(Any . '_get!) stack) types))
                      ((and (list? code) (eq? (car code) '_symbol))
                       (values (cons `(Symbol . ,(cadr code)) stack) types))
                      ((and (list? code) (eq? (car code) '_push!))
@@ -230,6 +232,8 @@
                                     ,(format #f "Here, `then' path yields the type stack of `~a'" s1)
                                     ,(format #f "While `else' path yields the type stack of `~a'" s2)
                                     "Note: if your function does not return a value (type: Void), You must explicitly declare that with a signature."))))))
+                     ((and (list? code) (eq? (car code) '_with-label))
+                      (lwalk walk `((_begin ,(caddr code))) stack types))
                      ((and (list? code) (eq? (car code) '_with-locals!))
                       (let* ((locals (reverse (cadr code)))
                              (n (len locals)))
@@ -256,7 +260,7 @@
                       (lets ((stack types (walk stack types `(_begin ,(cdr code)))))
                         ;; TODO: typecheck if it's really calling a function
                         (when (not (get (get env 'labels empty) (car code) #f))
-                          (skip "cannot typecheck local function"))
+                          (skip `("cannot typecheck local function " ,code)))
                         (lets ((T (typecheck-funcall
                                    code
                                    (and (imm? (car code)) (car code))

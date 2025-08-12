@@ -92,6 +92,7 @@
           (set8! (+ target (f uxn)) val)
           (f! uxn (+ (f uxn) 1))))))
 
+(define-signature uxn-pop Pointer -> Number -> Number -> Number -> Any)
 (define (uxn-pop uxn shortp returnp keepp)
   (let ((target (if returnp (uxn-rst uxn) (uxn-wst uxn)))
         (f (if returnp uxn-rp uxn-wp))
