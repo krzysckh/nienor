@@ -274,22 +274,17 @@
                           (if-lets ((defun (and (imm? (car code)) (not typechecked?) (name->defun (car code)))))
                             (call/cc
                              (λ (skip)
-                               (lets ((err (call/cc
-                                            (λ (err*)
-                                              (walk-typecheck
-                                               (name->defun (car code))
-                                               (put env 'tcheck
-                                                    (put (get env 'tcheck empty)
-                                                         (car code)
-                                                         (ff 'args (reverse (take stack (len (cdr code))))
-                                                             'result (get (get (get env 'tcheck empty) (car code) empty) 'result 'Any))))
-                                               skip
-                                               name->defun
-                                               err*
-                                               (+ depth 1))))))
-                                 (when (not (environment? err))
-                                   (error* (append err `(,(format #f "Called in ~a as `~a'" name code)))))))
-                          ))
+                               (walk-typecheck
+                                (name->defun (car code))
+                                (put env 'tcheck
+                                     (put (get env 'tcheck empty)
+                                          (car code)
+                                          (ff 'args (reverse (take stack (len (cdr code))))
+                                              'result (get (get (get env 'tcheck empty) (car code) empty) 'result 'Any))))
+                                skip
+                                name->defun
+                                (λ (l) (error* (append l `(,(format #f "Called in ~a as `~a'" name code)))))
+                                (+ depth 1)))))
                           ;; (print "T of " code " is " T)
                           (let ((S (drop stack (len (cdr code)))))
                             (values
@@ -330,18 +325,15 @@
                                   #f
                                   (if (eq? (cadar defuns) name)
                                       (car defuns)
-                                      (loop (cdr defuns))))))))
-        (lets ((err
-                (call/cc
-                 (λ (err)
-                   (let loop ((defuns defuns) (env env))
-                     (if (null? defuns)
-                         env
-                         (begin
-                           (if-lets ((reason (call/cc (λ (skip) (walk-typecheck (car defuns) env skip name->defun err 0)))))
-                             (begin
-                               (when (and (verbose? env) (not (environment? reason)))
-                                 (format stdout "    [typecheck] skipped defun ~a because \"~a\"~%" (cadar defuns) reason))
-                               (loop (cdr defuns) (if (environment? reason) reason env)))))))))))
-          (if (environment? err) err (apply* error err)))))
+                                      (loop (cdr defuns)))))))
+              (err (λ (l) (apply* error l))))
+        (let loop ((defuns defuns) (env env))
+          (if (null? defuns)
+              env
+              (begin
+                (if-lets ((reason (call/cc (λ (skip) (walk-typecheck (car defuns) env skip name->defun err 0)))))
+                  (begin
+                    (when (and (verbose? env) (not (environment? reason)))
+                      (format stdout "    [typecheck] skipped defun ~a because \"~a\"~%" (cadar defuns) reason))
+                    (loop (cdr defuns) (if (environment? reason) reason env)))))))))
     ))
