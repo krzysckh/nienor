@@ -188,8 +188,8 @@
                                            (if (if (number? v) (= 0 v) (eqv? #f v))
                                                (cdr (assoc 'else vs))
                                                (cdr (assoc 'then vs))))))
-        ((>>) (>> ,number?-a ,number?-b) ,(make-folder (λ (b a) (band #xffff (>> a b)))))
-        ((<<) (<< ,number?-a ,number?-b) ,(make-folder (λ (b a) (band #xffff (<< a b)))))
+        ((>>) (>> ,number?-a ,number?-b) ,(make-folder (λ (b a) (>> a b))))
+        ((<<) (<< ,number?-a ,number?-b) ,(make-folder (λ (b a) (<< a b))))
         ))
 
     (define (fold-constants lst)

@@ -250,3 +250,27 @@
   (begin
     (set! *command-line-cont* f)
     (set-console-handler! command-line-args-vec)))
+
+;; TODO: define 2bpp sprite
+(define-macro-rule (_)
+  (_define-sprite acc _ . rest)
+  (_define-sprite (<< acc 1) . rest))
+
+(define-macro-rule (X)
+  (_define-sprite acc X . rest)
+  (_define-sprite (bior (<< acc 1) 1) . rest))
+
+(define-macro-rule ()
+  (_define-sprite acc)
+  ((>> (band acc #xff00000000000000) (- 64 8))
+   (>> (band acc #xff000000000000)   (- 64 (* 2 8)))
+   (>> (band acc #xff0000000000)     (- 64 (* 3 8)))
+   (>> (band acc #xff00000000)       (- 64 (* 4 8)))
+   (>> (band acc #xff000000)         (- 64 (* 5 8)))
+   (>> (band acc #xff0000)           (- 64 (* 6 8)))
+   (>> (band acc #xff00)             (- 64 (* 7 8)))
+   (band acc #xff)))
+
+(define-macro-rule ()
+  (define-sprite name . rest)
+  (alloc! name . (_define-sprite 0 . rest)))
