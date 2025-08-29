@@ -375,12 +375,12 @@
   (_with-locals! names body))
 
 (define-macro-rule ()
-  (with-gensyms (exp . rest) . body)
-  (with-gensym exp (with-gensyms rest . body)))
+  (with-gensyms (exp . rest) body)
+  (with-gensym exp (with-gensyms rest body)))
 
 (define-macro-rule ()
-  (with-gensyms (exp) . body)
-  (with-gensym exp . body))
+  (with-gensyms (exp) body)
+  (with-gensym exp body))
 
 (define-macro-rule ()
   (loopn (it _from _to _by) . body)

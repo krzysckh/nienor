@@ -136,40 +136,41 @@
                       ((_alloc! name exps)
                        (if (get (get env 'labels empty) name #f)
                            (loop rest at env acc)
-                           (let* ((tuples
-                                   (map
-                                    (λ (exp)
-                                      (cond
-                                       ((string? exp)
-                                        (tuple 'bytes (string->bytes exp)))
-                                       ((symbol? exp)
-                                        (tuple 'unresolved-symbol exp (λ (loc) (list (>> (band #xff00 loc) 8) (band #xff loc)))))
-                                       ((number? exp)
-                                        (if (> exp 255)
-                                            (let ((l (list (>> (band #xff00 exp) 8) (band #xff exp))))
-                                              (warn (format #f "_alloc: ~a is > 255, allocating it as 2 bytes. consider doing this explicitly with these values: ~a to silence this warning" exp l))
-                                              (tuple 'bytes l))
-                                            (tuple 'bytes (list exp))))
-                                       (else
-                                        (error (format #f "Unknown expression type of ~a." exp)))))
-                                    exps))
-                                  (len (fold
-                                        (λ (a b)
-                                          (tuple-case b
-                                            ((bytes l)
-                                             (+ a (len l)))
-                                            ((unresolved-symbol _1 _2)
-                                             (+ a 2))
-                                            (else
-                                             (error "BUG" b))))
-                                        0 tuples)))
-                             (loop rest
-                                   (+ at len)
-                                   (add-label env name at)
-                                   (append
-                                    acc
-                                    (list (tuple 'commentary `("space allocated for" ,name "(" ,len "bytes )")))
-                                    tuples)))))
+                           (letrec* ((thing->tuple
+                                      (λ (exp)
+                                        (cond
+                                         ((list? exp)
+                                          (map thing->tuple exp))
+                                         ((string? exp)
+                                          (tuple 'bytes (string->bytes exp)))
+                                         ((symbol? exp)
+                                          (tuple 'unresolved-symbol exp (λ (loc) (list (>> (band #xff00 loc) 8) (band #xff loc)))))
+                                         ((number? exp)
+                                          (if (> exp 255)
+                                              (let ((l (list (>> (band #xff00 exp) 8) (band #xff exp))))
+                                                (warn (format #f "_alloc: ~a is > 255, allocating it as 2 bytes. consider doing this explicitly with these values: ~a to silence this warning" exp l))
+                                                (tuple 'bytes l))
+                                              (tuple 'bytes (list exp))))
+                                         (else
+                                          (error (format #f "Unknown expression type of ~a." exp)))))))
+                             (let* ((tuples (flatten (map thing->tuple exps)))
+                                    (len (fold
+                                           (λ (a b)
+                                             (tuple-case b
+                                               ((bytes l)
+                                                (+ a (len l)))
+                                               ((unresolved-symbol _1 _2)
+                                                (+ a 2))
+                                               (else
+                                                (error "BUG" b)))) ; <- that's a great error message
+                                           0 tuples)))
+                               (loop rest
+                                     (+ at len)
+                                     (add-label env name at)
+                                     (append
+                                      acc
+                                      (list (tuple 'commentary `("space allocated for" ,name "(" ,len "bytes )")))
+                                      tuples))))))
                       ((codegen-at! ptr)
                        (loop rest ptr env (append acc (list (tuple 'codegen-at ptr)))))
                       ((_push! mode value) ; TODO: use which-local
@@ -502,7 +503,9 @@
     (define (walk-change-symbol body sym to)
       (cond
        ((null? body) #n)
-       ((pair? body) (cons (walk-change-symbol (car body) sym to) (walk-change-symbol (cdr body) sym to)))
+       ((pair? body)
+        (cons (walk-change-symbol (car body) sym to)
+              (walk-change-symbol (cdr body) sym to)))
        (else
         (if (eq? body sym) to body))))
 
@@ -590,13 +593,11 @@
                                                               (let ((args (cdr (assoc 'args vs))))
                                                                 (string->symbol
                                                                  (fold string-append "" (map symbol->string args))))))
-        ((with-gensym)           (with-gensym bind . body) ,(λ (vs) ; VERY UNSAFE
+        ((with-gensym)           (with-gensym bind exp)   ,(λ (vs) ; VERY UNSAFE
                                                               (let ((b (cdr (assoc 'bind vs)))
-                                                                    (body (cdr (assoc 'body vs)))
+                                                                    (body (cdr (assoc 'exp vs)))
                                                                     (g (gensym 'user)))
-                                                                (append
-                                                                 '(begin)
-                                                                 (walk-change-symbol body b g)))))
+                                                                (walk-change-symbol body b g))))
         ((embed)                 (embed file)              ,(λ (vs)
                                                               (file->list (cdr (assoc 'file vs)))))
         ))
@@ -607,6 +608,7 @@
 
     ;; TODO: Add some sort of env to hold all these options
     ;; with-debug? will ask (resolve) to attach comments about code into the resolving byte stream
+    ;; TODO: add a "very verbose" mode to debug macros :/
     (define (compile lst with-debug? only-expand-macros verbose? disable-typechecker? env*)
       (let loop ((lst lst) (at #x100) (code #n)
                  (env (or env*

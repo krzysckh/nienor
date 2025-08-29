@@ -12,6 +12,7 @@
    warn
    error
    add-macros
+   flatten
 
    verbose?
    imm?
@@ -169,4 +170,12 @@
       (if (> (len l) 5)
           (exported-eval `(,f ,@l) *toplevel*)
           (apply f l)))
+
+    (define (flatten l)
+      (cond
+       ((null? l) #n)
+       ((pair? (car* l)) (append (flatten (car l)) (flatten (cdr l))))
+       ((pair? l) (cons (flatten (car l)) (flatten (cdr l))))
+       (else l)))
+
     ))
