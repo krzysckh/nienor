@@ -47,6 +47,21 @@
     (print "Inferred definitions:")
     (for-each (λ (x) (format stdout "  ~a~%" (n/render-func x env))) (map car fs))))
 
+(define (make-spaceout-name lst pad)
+  (let ((longest (string-length (fold (λ (a b) (if (> (string-length a) (string-length b)) a b)) "" lst))))
+    (λ (s)
+      (make-string (- longest (string-length s)) pad))))
+
+(define (print-defun-sizes env)
+  (let* ((defun-sizes (map
+                       (λ (c) (cons (str (car c)) (cdr c)))
+                       (ff->list (get env 'defun-sizes '()))))
+         (spaceout (make-spaceout-name (map car defun-sizes) #\space)))
+    (print "Defun sizes:")
+    (for-each
+     (λ (c) (format stdout "  ~a~a ~aB~%" (car c) (spaceout (car c)) (cdr c)))
+     (sort (λ (a b) (< (cdr a) (cdr b))) defun-sizes))))
+
 (λ (args)
   (process-arguments
    (cdr args) command-line-rules "you lose"
@@ -106,7 +121,8 @@
                        (* 100 (/ (len data) (<< 1 16)))
                        n-labels)
                (when verbose?
-                 (print-inferred-functions env)))
+                 (print-inferred-functions env)
+                 (print-defun-sizes env)))
              ;; TODO: delete unused labels so i can show them here
              ;; (when v
              ;;   (print-used-labels env))

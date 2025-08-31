@@ -97,18 +97,19 @@
 
     (define empty-env
       (pipe empty
-        (put 'labels   empty) ; ff of labels & constants, global
-        (put 'vars     #n)    ; list of variables. these are labels that need to have _get! appended to them for easier usage
-        (put 'locals   #n)    ; a list, newest consed before, then removed at free-locals!
-        (put 'macros   empty) ; ff of macro-name -> λ (exp) -> rewritten
-        (put 'epilogue #n)    ; epilogue = code compiled later
-        (put 'arity    empty) ; ff of defun-name -> arity for simple arity checking ;; <- TODO: move this somewhere else
-        (put 'symbols  empty) ; ff of symbol-name -> id
-        (put 'verbose? #f)    ; self explanatory
-        (put 'tcheck   empty) ; ff of function-name -> ff of args=(T ...) result=T' inferred=#t|#f
-        (put 'tcheckd  empty) ; ff of function-name -> list of ((T ...) ...)
-        (put 'trules   empty) ; ff of t1 -> ff of t2 -> λx -> #t | #f
-        (put '_compile #f)    ; compile function itself (what an ugly hack!) ; TODO: <- wow, this is a hack
+        (put 'labels      empty) ; ff of labels & constants, global
+        (put 'vars        #n)    ; list of variables. these are labels that need to have _get! appended to them for easier usage
+        (put 'locals      #n)    ; a list, newest consed before, then removed at free-locals!
+        (put 'macros      empty) ; ff of macro-name -> λ (exp) -> rewritten
+        (put 'epilogue    #n)    ; epilogue = code compiled later
+        (put 'arity       empty) ; ff of defun-name -> arity for simple arity checking ;; <- TODO: move this somewhere else
+        (put 'symbols     empty) ; ff of symbol-name -> id
+        (put 'verbose?    #f)    ; self explanatory
+        (put 'tcheck      empty) ; ff of function-name -> ff of args=(T ...) result=T' inferred=#t|#f
+        (put 'tcheckd     empty) ; ff of function-name -> list of ((T ...) ...)
+        (put 'trules      empty) ; ff of t1 -> ff of t2 -> λx -> #t | #f
+        (put '_compile    #f)    ; compile function itself (what an ugly hack!) ; TODO: <- wow, this is a hack
+        (put 'defun-sizes empty) ; ff of defunname -> size in bytes ; TODO: move that to some sort of a list of additional info
         ))
 
     (define imm? (B not pair?))

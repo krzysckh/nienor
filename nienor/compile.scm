@@ -71,9 +71,9 @@
     (define (name->skip-prologue-name name)
       (string->symbol (str name "__skip-prologue")))
 
-    (define (make-defun codegen cont env acc rest at name args body mode)
+    (define (make-defun codegen cont env acc rest at_ name args body mode)
       (lets ((f (codegen
-                   at
+                   at_
                    `((define-label! ,name)
                      (_with-locals!
                       ,(reverse args)
@@ -82,7 +82,8 @@
                            '((uxn-call! () brk)) ; a list because i had something something in mind
                            '((uxn-call! (2 r) jmp)))
                      )))
-             (at code env* (f env)))
+             (at code env* (f env))
+             (env* (put env* 'defun-sizes (put (get env 'defun-sizes empty) name (- at at_)))))
         (cont
          rest at
          (put env* 'arity (put (get env* 'arity empty) name (len args)))
