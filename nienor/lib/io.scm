@@ -281,7 +281,7 @@
 
 (define-macro-rule ()
   (define-2bpp-sprite name (a1 a2 a3 a4) . full)
-  (with-gensyms (M)
+  (with-gensym (M for-2bpp-sprite)
     (flatten!
      (define-macro-rule ()
        (M (acc1 acc2))

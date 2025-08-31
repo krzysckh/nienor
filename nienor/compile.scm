@@ -588,18 +588,20 @@
 
     ;; ooo! we hackin
     (define *compiler-macros*
-      ;; literal                 match                      replace
-      `(((__append-symbols)      (__append-symbols . args) ,(λ (vs)
-                                                              (let ((args (cdr (assoc 'args vs))))
-                                                                (string->symbol
-                                                                 (fold string-append "" (map symbol->string args))))))
-        ((with-gensym)           (with-gensym bind exp)   ,(λ (vs) ; VERY UNSAFE
-                                                              (let ((b (cdr (assoc 'bind vs)))
-                                                                    (body (cdr (assoc 'exp vs)))
-                                                                    (g (gensym 'user)))
-                                                                (walk-change-symbol body b g))))
-        ((embed)                 (embed file)              ,(λ (vs)
-                                                              (file->list (cdr (assoc 'file vs)))))
+      ;; literal                 match                         replace
+      `(((__append-symbols)      (__append-symbols . args)     ,(λ (vs)
+                                                                  (let ((args (cdr (assoc 'args vs))))
+                                                                    (string->symbol
+                                                                     (fold string-append "" (map symbol->string args))))))
+        ((with-gensym)           (with-gensym bind exp)        (with-gensym (bind user) exp))
+        ((with-gensym)           (with-gensym (bind name) exp) ,(λ (vs) ; VERY UNSAFE
+                                                                  (let* ((b (cdr (assoc 'bind vs)))
+                                                                         (body (cdr (assoc 'exp vs)))
+                                                                         (name (cdr (assoc 'name vs)))
+                                                                         (g (gensym name)))
+                                                                    (walk-change-symbol body b g))))
+        ((embed)                 (embed file)                  ,(λ (vs)
+                                                                  (file->list (cdr (assoc 'file vs)))))
         ))
 
     (define (initialize-global-threads!)

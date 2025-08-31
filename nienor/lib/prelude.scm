@@ -384,7 +384,8 @@
 
 (define-macro-rule ()
   (loopn (it _from _to _by) . body)
-  (with-gensyms (to by)
+  (with-gensyms ((to loop)
+                 (by loop))
     (let ((it _from)
           (to _to)
           (by _by))
