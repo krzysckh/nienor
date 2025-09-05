@@ -31,9 +31,6 @@
               (mail who (string->symbol (str "@@gensym_" x "_" n)))
               ;; was: (mail who (string->symbol (str "g" n)))
               ;; i had a crazy bug where i named a variable g1 & g2 and it freaked out on an if statement
-              ;; which - coincidentally - is the only piece of codegen that uses gensyms
-              ;; makes you wonder...
-              ;; TODO: use temporary labels in if
               (loop (+ n 1))))))))
 
     (define (start-string-interner!)
@@ -174,7 +171,7 @@
                                       tuples))))))
                       ((codegen-at! ptr)
                        (loop rest ptr env (append acc (list (tuple 'codegen-at ptr)))))
-                      ((_push! mode value) ; TODO: use which-local
+                      ((_push! mode value) ; TODO: use which-local ; <- TODO: recall what i meant by that
                        (lets ((byte? (eq? mode 'byte))
                               (env at code
                                    (cond
@@ -525,6 +522,8 @@
                    (loop (append (file->sexps filename) (cdr exp)) env acc (+ substitutions 1)))
                   ((_declare-var! var-name)
                    (loop (cdr exp) (put env 'vars (cons var-name (get env 'vars #n))) acc (+ substitutions 1)))
+                  ((_define-type type-name)
+                   (loop (cdr exp) (put env 'types (cons type-name (get env 'types #n))) acc (+ substitutions 1)))
                   ((_define-signature func-name types ret)
                                         ; (format stdout "signature for ~a: ~a -> ~a~%" func-name types ret)
                    (let ((ff (pipe empty

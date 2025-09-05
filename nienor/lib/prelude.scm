@@ -852,10 +852,22 @@
   (typechecker-bogger-off! . rest)
   (_typechecker-bogger-off! rest))
 
-;; TODO: actually define types, and not just let any symbol pass
 (define-macro-rule ()
   (define-type T)
-  (flatten!))
+  (_define-type T))
+
+(define-macro-rule ()
+  (define-types T . rest)
+  (flatten!
+   (define-type T)
+   (define-types . rest)))
+
+(define-macro-rule ()
+  (define-types T)
+  (define-type T))
+
+;; Defining basic types
+(define-types Number String Symbol Bool Pointer Any Void)
 
 (define-macro-rule ()
   (define-typing-rules rule . rules)

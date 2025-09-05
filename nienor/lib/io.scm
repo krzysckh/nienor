@@ -34,11 +34,11 @@
         (putchar (get8! ptr))
         (puts-static (+ ptr 1) putchar))))
 
-(define-signature _putchar -> Number -> Void)
+(define-signature _putchar Number -> Void)
 (define (_putchar c)
   (putchar c))
 
-(define-signature _eputchar -> Number -> Void)
+(define-signature _eputchar Number -> Void)
 (define (_eputchar c)
   (putchar-error c))
 

@@ -105,6 +105,7 @@
         (put 'arity       empty) ; ff of defun-name -> arity for simple arity checking ;; <- TODO: move this somewhere else
         (put 'symbols     empty) ; ff of symbol-name -> id
         (put 'verbose?    #f)    ; self explanatory
+        (put 'types       #n)    ; list of declared types that can be used
         (put 'tcheck      empty) ; ff of function-name -> ff of args=(T ...) result=T' inferred=#t|#f
         (put 'tcheckd     empty) ; ff of function-name -> list of ((T ...) ...)
         (put 'trules      empty) ; ff of t1 -> ff of t2 -> λx -> #t | #f

@@ -169,7 +169,6 @@
       (λ (vs)
         (pred (cdr (assoc 'b vs)) (cdr (assoc 'a vs)))))
 
-    ;; TODO: all these rely too heavily on prelude implemntation
     ;; TODO: not
     (define constant-folders
       ;; literal                 match                                              replace
