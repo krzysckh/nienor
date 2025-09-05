@@ -49,9 +49,9 @@
           0))))
 
 (define (compile-and-expect filename vs)
-  (let ((what (get vs 'output 'bug))
+  (let ((what  (get vs 'output 'bug))
         (input (get vs 'input #f))
-        (args (get vs 'args #n)))
+        (args  (get vs 'args #n)))
     (if (= 1 (compile filename vs))
         (+ 1 (expect what input args))
         1)))

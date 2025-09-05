@@ -11,9 +11,7 @@
 (define-vector (*console-handler*)
   (let ((v* (console-read))
         (t  (console-type)))
-    (let ((v (if (>= v* #\a)
-                 (- v* (- #\a 10))
-                 (- v* #\0))))
+    (let ((v (if (>= v* #\a) (- v* (- #\a 10)) (- v* #\0))))
       (cond
        ((= t 4)
         (exit!))
