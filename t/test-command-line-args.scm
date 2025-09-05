@@ -1,4 +1,5 @@
 (_declare-test
+ args   => ("ARG")
  output => "args:\n- ARG\n")
 
 (define (main)

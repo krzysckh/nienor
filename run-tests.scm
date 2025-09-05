@@ -34,17 +34,26 @@
             1)
           0)))
 
-(define (expect what)
-  (lets ((r w (popen (format #f "~a ~a ARG 2>/dev/null" *uxnemu-implementation* *tmp-rom-location*)))
-         (res (bytes->string (force-ll (port->byte-stream r)))))
-    (if (equal? what res)
-        1
-        0)))
+(define (expect what input args)
+  (lets ((r w (popen (format #f "~a ~a ~a 2>/dev/null"
+                             *uxnemu-implementation*
+                             *tmp-rom-location*
+                             (fold (λ (a b) (string-append a b " ")) "" args)
+                             ))))
+    (when input
+      (write-bytes w (string->bytes input))
+      (close-port w))
+    (let ((res (bytes->string (force-ll (port->byte-stream r)))))
+      (if (equal? what res)
+          1
+          0))))
 
 (define (compile-and-expect filename vs)
-  (let ((what (get vs 'output 'bug)))
+  (let ((what (get vs 'output 'bug))
+        (input (get vs 'input #f))
+        (args (get vs 'args #n)))
     (if (= 1 (compile filename vs))
-        (+ 1 (expect what))
+        (+ 1 (expect what input args))
         1)))
 
 ;; filename → (values filename possible-tests passed-tests)

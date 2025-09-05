@@ -567,7 +567,7 @@
 
 (define-macro-rule (else)
   (cond (else . code))
-  (cond (#t . code)))
+  (cond (1 . code)))
 
 ;; this is fucking hilarious
 ;; _symbol is not a funcion, but the typechecker will treat it as such
