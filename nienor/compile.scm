@@ -651,7 +651,8 @@
        (file->sexps "nienor/lib/malloc.scm")
        (file->sexps "nienor/lib/signed.scm")
        (file->sexps "nienor/lib/font.scm")
-       (file->sexps "nienor/lib/io.scm")))
+       (file->sexps "nienor/lib/io.scm")
+       (file->sexps "nienor/lib/typecheck-data.scm")))
 
     (define (attach-prelude lst)
       (append *prelude* lst))

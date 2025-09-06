@@ -98,16 +98,6 @@
        (else
         #f)))
 
-    (define association-table
-      ;; this     is also this
-      `((Symbol   Number Bool)
-        (Bool     Number)
-        (Number   Pointer Bool)
-        (Pointer  Number Bool)
-        (String   Pointer)
-        (Void)
-        (Any      Number Pointer String Symbol Bool)))
-
     (define special '(_begin uxn-call! _push!))
 
     (define (types->declaration l)
@@ -125,10 +115,11 @@
     ;; t1 = (T . val*), t2 = T'
     (define (is-of-type? t1 t2 env)
       (or (eq? (car* t1) 'Any)
-          (has? (or (assoc (car* t1) association-table) (list (car* t1))) t2)
-          (if-lets ((f (get (get (get env 'trules empty) (car* t1) empty) t2 #f))
-                    (_ (not (eq? (cdr* t1) '__from-type))))
-            (boolize (f (cdr* t1) env))
+          (eq? (car* t1) (car* t2))
+          (if-lets ((f (get (get (get env 'trules empty) (car* t1) empty) t2 #f)))
+            (if (eq? (cdr* t1) '__from-type)
+                (and f #t)
+                (boolize (f (cdr* t1) env)))
             #f)))
 
     (define (render-func f env)
