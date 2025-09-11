@@ -56,6 +56,11 @@
          ;; (jsi 0 0)
          ;; (lit 0 0))))
 
+    (define uc? (string->regex "m/^[A-Z]+$/"))
+
+    (define (real-type? t)
+      (uc? (string (string-ref (str t) 0))))
+
     ;; name env → argT resT
     (define (types-of f env)
       (if f
@@ -114,7 +119,9 @@
     ;; is t1 of the broader type t2
     ;; t1 = (T . val*), t2 = T'
     (define (is-of-type? t1 t2 env)
+      ;; (print "Is of type: " t1 ", " t2)
       (or (eq? (car* t1) 'Any)
+          (eq? (car* t2) 'Any)
           (eq? (car* t1) (car* t2))
           (if-lets ((f (get (get (get env 'trules empty) (car* t1) empty) t2 #f)))
             (if (eq? (cdr* t1) '__from-type)
@@ -126,6 +133,16 @@
       (lets ((argT resT (types-of f env)))
         (format #f "~a :: ~a" f (types->declaration (append argT (list resT))))))
 
+    (define generic? (B not real-type?))
+
+    (define (app-generic t1 t2 generics)
+      (if-lets ((was (get generics t1 #f)))
+        (values was generics)
+        (values t2 (put generics t1 t2))))
+
+      ;; t1)
+      ;; (if (generic? t1) t2 t1))
+
     (define (typecheck-funcall funcall fun-name arg-types* env error*)
       ;; (print "typecheck-funcall " funcall ": "  fun-name " " arg-types*)
       (if-lets ((argT resT (types-of fun-name env))
@@ -134,27 +151,36 @@
             (if (verbose? env)
                 (begin (format stdout "    [typecheck] cannot typecheck `~a' — special funcall" funcall) #t)
                 #t)
-            (let loop ((required argT) (got arg-types*) (arg (cdr* funcall)))
-              (cond
-               ((and (null? got) (null? required))
-                (if (eq? 'Void resT) #f resT))
-               ((or (null? got) (null? required))
-                (error* `(,(format #f "Invalid arity in function call `~a' — expected ~a, got ~a" funcall (map car argT) arg-types)
-                          "Function declared as"
-                          ,(format #f "  ~a :: ~a" fun-name (types->declaration (append (map car argT) (list resT))))
-                          "Used as"
-                          ,(format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT)))))))
-               (else
-                (if (or (eq? (caar required) 'Any)
-                        (is-of-type? (car got) (caar required) env))
-                    (loop (cdr required) (cdr got) (cdr* arg))
-                    (error* `(,(format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall (map car argT) arg-types)
-                              "Function declared as"
-                              ,(format #f "  ~a :: ~a" fun-name (types->declaration (append (map car argT) (list resT))))
-                              "Used as"
-                              ,(format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))
-                              ,(format #f "~a~a cannot be treated as ~a" (caar got) (if arg (str " `" (car arg) "'") "") (caar required))))
-                    )))))))
+            (let loop ((required argT)      ; types required as per function declaration
+                       (got arg-types*)     ; types passed
+                       (arg (cdr* funcall)) ; args passed
+                       (generics empty)     ; ff of generic-name -> type
+                       )
+              (if (and (null? got) (null? required))
+                  (if (eq? 'Void resT)
+                      #f
+                      (if (generic? resT)
+                          (lets ((res _ (app-generic resT 'Any generics))) res)
+                          resT))
+                  (if (or (null? got) (null? required))
+                      (error* `(,(format #f "Invalid arity in function call `~a' — expected ~a, got ~a" funcall (map car argT) arg-types)
+                                "Function declared as"
+                                ,(format #f "  ~a :: ~a" fun-name (types->declaration (append (map car argT) (list resT))))
+                                "Used as"
+                                ,(format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))))
+                      (lets ((current-required generics (if (generic? (caar required))
+                                                            (app-generic (caar required) (caar got) generics)
+                                                            (values (caar required) generics))))
+                        (if (or (eq? current-required 'Any)
+                                (is-of-type? (car got) current-required env))
+                            (loop (cdr required) (cdr got) (cdr* arg) generics) ; ok
+                            (error* `(,(format #f "Mismatched types in function call `~a' — expected ~a, got ~a" funcall (map car argT) arg-types)
+                                      "Function declared as"
+                                      ,(format #f "  ~a :: ~a" fun-name (types->declaration (append (map car argT) (list resT))))
+                                      "Used as"
+                                      ,(format #f "  ~a :: ~a" fun-name (types->declaration (append arg-types (list resT))))
+                                      ,(format #f "~a~a cannot be treated as ~a" (caar got) (if arg (str " `" (car arg) "'") "") current-required)))
+                    ))))))))
 
     (define (lwalk walk l stack types)
       (let loop ((stack stack) (types types) (l l))
@@ -164,6 +190,7 @@
               (loop stack types (cdr l))))))
 
     (define (walk-typecheck defun env skip name->defun error* depth)
+      ;; (print "walk-typecheck " defun)
       (when (> depth *max-typecheck-depth*)
         (skip "max typecheck depth exceeded"))
       (lets ((name (cadr   defun))
@@ -271,7 +298,8 @@
                                      (put (get env 'tcheck empty)
                                           (car code)
                                           (ff 'args (reverse (take stack (len (cdr code))))
-                                              'result (get (get (get env 'tcheck empty) (car code) empty) 'result 'Any))))
+                                              'result (or T
+                                                          (get (get (get env 'tcheck empty) (car code) empty) 'result 'Any)))))
                                 skip
                                 name->defun
                                 (λ (l) (error* (append l `(,(format #f "Called in ~a as `~a'" name code)))))
@@ -321,12 +349,15 @@
               (let walk ((lst all))
                 (when (not (null? lst))
                   (let ((it (car lst)))
-                    (if (has? types it)
-                        (walk (cdr lst))
-                        (error (format "Unknown type `~a'." it)
-                               "  in signature declaration:"
-                               (format "(define-signature ~a ~a)" (car t) (types->declaration all)))))))
-              (loop (cdr t)))))
+                    (cond
+                     ((and (real-type? it) (has? types it))
+                      (walk (cdr lst)))
+                     ((real-type? it)
+                      (error (format "Unknown type `~a'." it)
+                             "  in signature declaration:"
+                             (format "(define-signature ~a ~a)" (car t) (types->declaration all))))
+                     (else (walk (cdr lst))))))))
+            (loop (cdr t))))
 
         (let ((e (λ (t1 t2) (error (format "Unknown type `~a' in type rule for ~a." t1 t2)))))
           (let loop ((t (keys trules)))

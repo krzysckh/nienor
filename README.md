@@ -145,3 +145,26 @@ If it's misbehaving, it may be fully disabled with `--disable-typechecker`.
   (f 0)
   (exit!))
 ```
+
+### Generic types
+
+Very experimental. Remember the `--disable-typechecker` option. It might come in handy.
+
+```scheme
+(define-signature f a -> b -> b)
+(define (f x y) x)
+
+(define (main)
+  (f 'x 'y))
+```
+
+this yields:
+
+```sh
+$ ol -r nienor.scm temp.scm
+error: Type mismatch in return value of function `f'.
+       Function declared as
+         f :: a -> b -> b
+       With invalid return value deduced to be of type a
+       Which cannot be treated as b
+```

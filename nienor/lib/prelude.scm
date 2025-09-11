@@ -593,6 +593,7 @@
      (make-instance (quote name))
      ((__append-symbols make- name)))
 
+   ;; (define-signature (__append-symbols make- name) name)
    (define-signature (__append-symbols make- name) name)
    (define ((__append-symbols make- name))
      (malloc size))))
