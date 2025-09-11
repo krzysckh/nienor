@@ -33,7 +33,7 @@
   (let ((b (make-bunny)))
     (when (= b 0)
       (error "Out of memory"))
-    (puts "bun@") (print b)
+    (puts "bun@") (print-number b)
     (set-bunny-x!     b (+ 1 (modulo (rand) (- w 10))))
     (set-bunny-y!     b (+ 1 (modulo (rand) (- h 10))))
     (set-bunny-vx!    b (+ 1 (modulo (rand) 6)))
