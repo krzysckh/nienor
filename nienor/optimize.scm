@@ -18,21 +18,19 @@
          (else
           (loop (cdr lst) (cons (car lst) acc))))))
 
+    ;; TODO: find a way to not use malloc in every rom
     (define *symbols-used-internally* '(main malloc/init malloc *METADATA-FINISH*))
 
-    ;; TODO: why is metadata-finish getting removed?
     (define (code->used-symbols exp)
       (uniq
-       (append
-        *symbols-used-internally*
-        (filter
-         symbol?
-         (let walk ((exp exp) (acc #n))
-           (cond
-            ((null? exp) acc)
-            ((pair? (car exp)) (walk (car exp) (append acc (walk (cdr exp) #n))))
-            (else
-             (walk (cdr exp) (append (list (car exp)) acc)))))))))
+       (filter
+        symbol?
+        (let walk ((exp exp) (acc #n))
+          (cond
+           ((null? exp) acc)
+           ((pair? (car exp)) (walk (car exp) (append acc (walk (cdr exp) #n))))
+           (else
+            (walk (cdr exp) (append (list (car exp)) acc))))))))
 
     (define (defun->used-symbols exp)
       (code->used-symbols (cdddr exp)))
@@ -74,6 +72,7 @@
     (define (find-used lst)
       (append
        (find-used-from 'main lst)
+       (fold append #n (map (C find-used-from lst) *symbols-used-internally*))
        (fold
         (λ (a b)
           (append a (find-used-from b lst)))
@@ -82,7 +81,10 @@
 
     ;; this removes unused defuns, defun-vectors, _alloc!s and nalloc!s
     (define (keep-only-used-defuns lst verbose? keep)
-      (if-lets ((used (append keep (find-used lst))))
+      (if-lets ((used (append
+                       *symbols-used-internally*
+                       keep
+                       (find-used lst))))
         (let loop ((lst lst) (acc #n))
           (cond
            ((null? lst) acc)
@@ -91,6 +93,7 @@
                      (eq? (car* (car lst)) '_alloc!)
                      (eq? (car* (car lst)) 'nalloc!))
                  (not (has? used (cadr (car lst)))))
+            ;; (print "used: " used)
             (when verbose?
               (print "  Deleted " (cadr (car lst))))
             (loop (cdr lst) acc))
