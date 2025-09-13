@@ -38,15 +38,16 @@
            (if (return? (car code)) "r" "")
            (if (keep? (car code)) "k" ""))))))
 
-    (define (disassemble code out)
+    (define (disassemble code out comment?)
       (let loop ((code code) (at #x100))
         (cond
          ((null? code) #t)
          ((list? (car code))
-          (format out "( ~a)~%" (unlist (car code)))
+          (when comment?
+            (format out "( ~a)~%" (unlist (car code))))
           (loop (cdr code) at))
          ((or (= (car code) #xa0) (= (car code) #xe0))
-          (format out "|~4,'0x   ~2,'0x ~2,'0x ~2,'0x    (  )~%" at (car code) (cadr code) (caddr code))
+          (format out "|~4,'0x   ~2,'0x ~2,'0x ~2,'0x    ( immediate )~%" at (car code) (cadr code) (caddr code))
           (loop (cdddr code) (+ at 3)))
          ((or (= (car code) #x80) (= (car code) #xc0))
           (format out "|~4,'0x   ~2,'0x ~2,'0x       ( )~%" at (car code) (cadr code))
@@ -55,8 +56,8 @@
           (format out "|~4,'0x   ~2,'0x          ( ~a )~%" at (car code) (comment code))
           (loop (cdr code) (+ at 1))))))
 
-    (define (disassemble-file filename out disT?)
+    (define (disassemble-file filename out disT? comment?)
       (lets ((_ data (n/compile (n/attach-prelude (file->sexps filename)) #t #f #f disT? #f)))
-        (disassemble data out)))
+        (disassemble data out comment?)))
 
     ))

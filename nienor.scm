@@ -15,6 +15,7 @@
      (emacro "-m" "--expand-macros"               comment "only expand and dump macros")
      (M      "-M" "--macroexpand"         has-arg comment "expand one macro (the argument) and exit")
      (dump   "-D" "--dump"                        comment "compile & disassemble to uxntal")
+     (ndesc  "-N" "--no-describe"                 comment "don't add additional comments to disassembly. might be helpful with rogue parentheses")
      (V      "-V" "--verbose"                     comment "be verbose")
      (q      "-q" "--quiet"                       comment "be quiet")
      (s      "-s" "--dump-symbol-table"           comment "dump symbol table to file")
@@ -81,6 +82,7 @@
             (quiet? (get opt 'q #f))
             (macroexpand? (get opt 'M #f))
             (disT? (get opt 'dtype #f))
+            (ndesc (get opt 'ndesc #f))
             (dump (get opt 'dump #f)))
        (when (and quiet? verbose?)
          (error "Cannot specify both --quiet and --verbose. You lose."))
@@ -108,7 +110,7 @@
            (let ((f (if (equal? out "-")
                         stdout
                         (open-output-file out))))
-             (d/disassemble-file (car extra) f disT?)
+             (d/disassemble-file (car extra) f disT? (not ndesc))
              (when (not (eq? f stdout))
                (close-port f))))
           (else
