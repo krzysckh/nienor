@@ -845,3 +845,18 @@
    (flatten!
     (alloc! *METADATA* 0 . strings)
     (nalloc! *METADATA-FINISH* 1))))
+
+(define-macro-rule ()
+  (string-length . rest)
+  (strlen . rest))
+
+(define-signature string-ref String -> Number -> Number)
+(define (string-ref s n)
+  (get8! (+ s n)))
+
+(define-signature string->unsigned-number String -> Number)
+(define (string->unsigned-number s)
+  (let ((res 0))
+    (loopn (i 0 (string-length s) 1)
+      (set! res (+ (* 10 res) (- (string-ref s i) #\0))))
+    res))

@@ -174,7 +174,7 @@
 
     ;; TODO: not
     (define constant-folders
-      ;; literal                 match                                              replace
+      ;; literal                 match                                                  replace
       `(((_begin uxn-call! add 2) (_begin (,number?-b ,number?-a (uxn-call! (2) add))) ,(make-folder +))
         ((_begin uxn-call! sub 2) (_begin (,number?-b ,number?-a (uxn-call! (2) sub))) ,(make-folder -))
         ((_begin uxn-call! mul 2) (_begin (,number?-b ,number?-a (uxn-call! (2) mul))) ,(make-folder *))
